@@ -1,0 +1,2005 @@
+
+//namespace std {
+
+//// hash specializaion for ast_constant
+//template <> struct hash<compiler::ast_constant> {
+//    size_t operator()(const compiler::ast_constant &c) const {
+//        using namespace compiler;
+        
+//        auto &t = c.m_type;
+//        bool u = t->is_unsigned();
+        
+//        switch(t->get_base()) {
+//            case Bool: return hash<bool>()(c.m_val.ival);
+//            case Char: 
+//                if(t->is_signed()) return hash<signed char>()(c.m_val.ival);
+//                else if(u) return hash<unsigned char>()(c.m_val.ival);
+//                return hash<char>()(c.m_val.ival);
+//            case Short: 
+//                if(u) return hash<unsigned short>()(c.m_val.ival);
+//                return hash<short>()(c.m_val.ival);
+//            case Int:
+//                if(u) return hash<unsigned int>()(c.m_val.ival);
+//                return hash<int>()(c.m_val.ival);
+//            case Long:
+//                if(u) return hash<unsigned long>()(c.m_val.ival);
+//                return hash<long>()(c.m_val.ival);
+//            case LLong:
+//                if(u) return hash<unsigned long long>()(c.m_val.ival);
+//                return hash<long long>()(c.m_val.ival);
+//            case Float:
+//                return hash<float>()(c.m_val.fval);
+//            case Double:
+//                return hash<double>()(c.m_val.dval);
+//            case LDouble:
+//                return hash<long double>()(c.m_val.ldval);
+//        }
+//    }
+//};
+
+//} // namespace std
+
+class parser {
+ast_expr* multiplicative_expr();
+ast_expr* additive_expr();
+ast_expr* shift_expr();
+ast_expr* relational_expr();
+ast_expr* equality_expr();
+ast_expr* and_expr();
+ast_expr* exclusive_or_expr();
+ast_expr* inclusive_or_expr();
+ast_expr* logical_and_expr();
+ast_expr* logical_or_expr();
+}
+
+/*---------------------------------------------------------.
+|   multiplicative_expression                              |
+|       : cast_expression                                  |
+|       | multiplicative_expression '*' cast_expression    |
+|       | multiplicative_expression '/' cast_expression    |
+|       | multiplicative_expression '%' cast_expression    |
+|       ;                                                  |
+`---------------------------------------------------------*/
+ast_expr* parser::multiplicative_expr() {
+    auto result = cast_expr();
+    uint32_t op;
+    for(;;) {
+        auto tok = m_cpp.get();
+        switch(tok->m_attr) {
+            case Star: op = Mul; break;
+            case Div: op = Div; break;
+            case Mod: op = Mod; break;
+            default: m_cpp.unget(tok.release()); return result;
+        }
+        result = make_binary(tok.release(), result, cast_expr(), op);
+    }
+    return result;
+}
+
+/*-------------------------------------------------------------.
+|   additive_expression                                        |
+|       : multiplicative_expression                            |
+|       | additive_expression '+' multiplicative_expression    |
+|       | additive_expression '-' multiplicative_expression    |
+|       ;                                                      |
+`-------------------------------------------------------------*/
+ast_expr* parser::additive_expr() {
+    auto result = multiplicative_expr();
+    uint32_t op;
+    for(;;) {
+        auto tok = m_cpp.get();
+        switch(tok->m_attr) {
+            case Add: op = Add; break;
+            case Sub: op = Sub; break;
+            default: m_cpp.unget(tok.release()); return result;
+        }
+        result = make_binary(tok.release(), result, multiplicative_expr(), op);
+    }
+    return result;
+}
+
+/*---------------------------------------------------------.
+|   shift_expression                                       |
+|       : additive_expression                              |
+|       | shift_expression LEFT_OP additive_expression     |
+|       | shift_expression RIGHT_OP additive_expression    |
+|       ;                                                  |
+`---------------------------------------------------------*/
+ast_expr* parser::shift_expr() {
+    auto result = additive_expr();
+    uint32_t op;
+    for(;;) {
+        auto tok = m_cpp.get();
+        switch(tok->m_attr) {
+            case LeftShift: op = LShift; break;
+            case RightShift: op = RShift; break;
+            default: m_cpp.unget(tok.release()); return result;
+        }
+        result = make_binary(tok.release(), result, additive_expr(), op);
+    }
+    return result;
+}
+
+/*--------------------------------------------------------.
+|   relational_expression                                 |
+|       : shift_expression                                |
+|       | relational_expression '<' shift_expression      |
+|       | relational_expression '>' shift_expression      |
+|       | relational_expression LE_OP shift_expression    |
+|       | relational_expression GE_OP shift_expression    |
+|       ;                                                 |
+`--------------------------------------------------------*/
+ast_expr* parser::relational_expr() {
+    auto result = shift_expr();
+    uint32_t op;
+    for(;;) {
+        auto tok = m_cpp.get();
+        switch(tok->m_attr) {
+            case LessThan: op = LessThan; break;
+            case LessEqual: op = LessThanEqual; break;
+            case GreaterThan: op = GreaterThan; break;
+            case GreaterEqual: op = GreaterThanEqual; break;
+            default: m_cpp.unget(tok.release()); return result;
+        }
+        result = make_binary(tok.release(), result, shift_expr(), op);
+    }
+    return result;
+}
+
+/*-----------------------------------------------------------.
+|   equality_expression                                      |
+|       : relational_expression                              |
+|       | equality_expression EQ_OP relational_expression    |
+|       | equality_expression NE_OP relational_expression    |
+|       ;                                                    |
+`-----------------------------------------------------------*/
+ast_expr* parser::equality_expr() {
+    auto result = relational_expr();
+    uint32_t op;
+    for(;;) {
+        auto tok = m_cpp.get();
+        switch(tok->m_attr) {
+            case Equal: op = Equal; break;
+            case NotEqual: op = NotEqual; break;
+            default: m_cpp.unget(tok.release()); return result;
+        }
+        result = make_binary(tok.release(), result, relational_expr(), op);
+    }
+    return result;
+}
+
+/*--------------------------------------------------.
+|   and_expression                                  |
+|       : equality_expression                       |
+|       | and_expression '&' equality_expression    |
+|       ;                                           |
+`--------------------------------------------------*/
+ast_expr* parser::and_expr() {
+    auto result = equality_expr();
+    for(;m_cpp.test(Ampersand);) 
+        result = make_binary(nullptr, result, equality_expr(), And);
+    return result;
+}
+
+/*------------------------------------------------------.
+|   exclusive_or_expression                             |
+|       : and_expression                                |
+|       | exclusive_or_expression '^' and_expression    |
+|       ;                                               |
+`------------------------------------------------------*/
+ast_expr* parser::exclusive_or_expr() {
+    auto result = and_expr();
+    for(;m_cpp.test(BitXor);)
+        result = make_binary(nullptr, result, and_expr(), Xor);
+    return result;
+}
+
+/*---------------------------------------------------------------.
+|   inclusive_or_expression                                      |
+|       : exclusive_or_expression                                |
+|       | inclusive_or_expression '|' exclusive_or_expression    |
+|       ;                                                        |
+`---------------------------------------------------------------*/
+ast_expr* parser::inclusive_or_expr() {
+    auto result = exclusive_or_expr();
+    for(;m_cpp.test(BitOr);) 
+        result = make_binary(nullptr, result, exclusive_or_expr(), Or);
+    return result;
+}
+
+/*-----------------------------------------------------------------.
+|   logical_and_expression                                         |
+|       : inclusive_or_expression                                  |
+|       | logical_and_expression AND_OP inclusive_or_expression    |
+|       ;                                                          |
+`-----------------------------------------------------------------*/
+ast_expr* parser::logical_and_expr() {
+    auto result = inclusive_or_expr();
+    for(;m_cpp.test(LogicalAnd);) 
+        result = make_binary(nullptr, result, inclusive_or_expr(), LogicAnd);
+    return result;
+}
+
+/*--------------------------------------------------------------.
+|   logical_or_expression                                       |
+|       : logical_and_expression                                |
+|       | logical_or_expression OR_OP logical_and_expression    |
+|       ;                                                       |
+`--------------------------------------------------------------*/
+ast_expr* parser::logical_or_expr() {
+    auto result = logical_and_expr();
+    for(;m_cpp.test(LogicalOr);) 
+        result = make_binary(nullptr, result, logical_and_expr(), LogicOr);
+    return result;
+}
+
+
+#ifndef __COMPILER_SCOPE__
+#define __COMPILER_SCOPE__
+
+#include "type.hpp"
+
+#include <list>
+#include <string>
+#include <memory>
+#include <cstdint>
+#include <unordered_map>
+
+namespace compiler {
+
+struct token;
+typedef std::unique_ptr<token> token_ptr;
+
+class scope;
+
+typedef std::list<type*> param_list;
+
+enum storage: uint8_t {
+    Typedef = 1,
+    Static = Typedef << 1,
+    Extern = Static << 1,
+    Inline = Extern << 1,
+    Register = Inline << 1, // deprecated, not going to implement
+    //Auto = Register << 1, // TODO: implement type deduction semantic
+};
+
+struct info {
+    bool      is_id;
+    uint8_t   s_attr; // storage attribute
+    token_ptr tok;
+    
+    info(bool b, token *t, uint8_t s): is_id(b), s_attr(s), tok(t) {}
+};
+
+// type information here is only a reference, the real copy is stored in AST
+struct id_info: public info {
+    qual_type m_type;
+    
+    id_info(token *tok, uint8_t s, qual_type t)
+        :info(true, tok, s), m_type(t) {}
+};
+
+struct func_info: public info {
+    param_list             m_params;
+    std::unique_ptr<scope> m_scope;
+    
+    func_info(token *tok, uint8_t s, param_list &&l)
+        :info(false, tok, s), m_params(std::move(l)), m_scope(nullptr) {}
+};
+
+class scope {
+    public:
+        typedef std::unordered_map<std::string, info> table_t;
+    private:
+        table_t m_table;
+        scope  *m_parent;
+    public:
+        scope(scope* = nullptr);
+        
+        bool empty() const {return m_table.empty();}
+        
+        id_info*   find_id(const std::string&);
+        func_info* find_func(const std::string&);
+        
+        id_info*   add_id(token*, qual_type, uint8_t);
+        func_info* add_func(token*, uint8_t, param_list&&);
+        
+        scope(const scope&) = delete;
+        scope& operator=(const scope&) = delete;
+};
+
+scope* make_scope(scope* = nullptr);
+
+} // namespace compiler
+
+#endif // __COMPILER_SCOPE__
+#include "error.hpp"
+#include "token.hpp"
+#include "scope.hpp"
+
+using namespace compiler;
+
+scope* make_scope(scope *parent) {return new scope(parent);}
+
+scope::scope(scope *parent):m_table(), m_parent(parent) {}
+
+id_info* scope::find_id(const std::string &name) {
+    auto it = m_table.find(name);
+    if(it != m_table.cend()) 
+        return it->second.is_id ? reinterpret_cast<id_info*>(&it->second) : nullptr;
+    return m_parent ? m_parent->find_id(name) : nullptr;
+}
+
+func_info* scope::find_func(const std::string &name) {
+    auto it = m_table.find(name);
+    if(it != m_table.cend()) 
+        return it->second.is_id ? nullptr : reinterpret_cast<func_info*>(&it->second);
+    return m_parent ? m_parent->find_func(name) : nullptr;
+}
+
+id_info* scope::add_id(token *tok, qual_type t, uint8_t stor) {
+    std::string str = tok->to_string();
+    auto pair = m_table.insert({std::move(str), id_info(tok, stor, t)});
+    if(!pair.second)
+        error(tok->m_loc, "Conflict identifier definition");
+    return reinterpret_cast<id_info*>(&pair.first->second);
+}
+
+func_info* scope::add_func(token *tok, uint8_t stor, param_list &&l) {
+    std::string str = tok->to_string();
+    auto pair = m_table.insert({std::move(str), func_info(tok, stor, std::move(l))});
+    if(!pair.second)
+        error(tok->m_loc, "Conflict identifier definition");
+    return reinterpret_cast<func_info*>(&pair.first->second);
+}
+
+//class type;
+////class type_void;
+////class type_arith;
+////class type_pointer;
+////class type_array;
+////class type_struct;
+////class type_union;
+
+//struct struct_field;
+
+//typedef std::list<struct_field> field_list;
+//typedef std::unique_ptr<type> type_ptr;
+
+//class type {
+//    friend class type_table;
+//    public:
+
+//        enum: unsigned int {
+//            size_void = 0,
+//            size_bool = 1,
+//            size_char = 1,
+//            size_short = 2,
+//            size_int = 4,
+//            size_long = 8,
+//            size_llong = 16, // ???
+//            size_float = 4,
+//            size_double = 8,
+//            size_ldouble = 16, // ???
+//            size_ptr = 4,
+//        };
+//        enum: uint8_t {
+//            BASE = 0,
+//            POINTER = 1,
+//            ARRAY = POINTER << 1,
+//            STRUCT = ARRAY << 1,
+//            UNION = STRUCT << 1,
+//            FUNC = UNION << 1,
+//        };
+//    protected:
+//        uint32_t m_qual;
+//        uint8_t  m_tag;
+//    public:
+//        type(uint32_t qual = 0, uint8_t tag = 0)
+//            :m_qual(qual), m_tag(0) {}
+        
+//        virtual ~type() = default;
+        
+//        virtual unsigned int size() const {return 0;}
+        
+//        virtual bool is_complete() const {return false;}
+//        virtual bool is_scalar() const {return false;}
+//        virtual bool is_aggregate() const {return false;}
+//        virtual bool is_arithmetic() const {return false;}
+//        virtual bool is_void() const {return false;}
+//        virtual bool is_integer() const {return false;}
+//        virtual bool is_float() const {return false;}
+        
+//        virtual bool is_signed() const {return false;}
+//        virtual bool is_unsigned() const {return false;}
+        
+//        virtual bool is_const() const {return m_qual & Const;}
+//        virtual bool is_volatile() const {return m_qual & Volatile;}
+//        virtual bool is_restrict() const {return m_qual & Restrict;}
+        
+//        virtual bool compatible(const type &t) const {return m_qual == t.m_qual;}
+        
+//        virtual bool can_cast(const type &t) const {return this == &t;}
+        
+//        bool is_pointer() const {return m_tag & POINTER;}
+//        bool is_array() const {return m_tag & ARRAY;}
+//        bool is_struct() const {return m_tag & STRUCT;}
+//        bool is_union() const {return m_tag & UNION;}
+//        bool is_func() const {return m_tag & FUNC;}
+        
+//        void set_const() {m_qual |= Const;}
+//        void set_volatile() {m_qual |= Volatile;}
+//        void set_restrict() {m_qual |= Restrict;}
+        
+//        virtual void merge(uint32_t);
+        
+//        virtual type* copy() const {return new type(m_qual);}
+//        virtual type* derived() const {return new type;}
+        
+//        virtual std::string to_string() const {
+//            std::string res{};
+//            if(is_const()) res += "const ";
+//            if(is_volatile()) res += "volatile ";
+//            if(is_restrict()) res += "restrict ";
+//            return res;
+//        }
+        
+//        virtual bool operator==(const type &t) const {
+//            return m_qual == t.m_qual && m_tag == t.m_tag;
+//        }
+//};
+
+//class type_void: public type {
+//    friend class type_table;
+//    public:
+//        type_void():type() {}
+        
+//        bool is_void() const override {return true;}
+//        bool compatible(const type &t) const override {return t.is_void();}
+        
+//        bool can_cast(const type&) const override {return false;}
+        
+//        void merge(uint32_t) override {}
+        
+//        type_void* copy() const override {return new type_void;}
+//        type_void* derived() const override {return new type_void;}
+        
+//        std::string to_string() const override {return "void";}
+        
+//        bool operator==(const type &t) const override {return t.is_void();}
+//};
+
+//// arithmetic types
+//class type_arith: public type {
+//    friend class type_table;
+//    public:
+//        static constexpr uint32_t sign_mask = 
+//                Unsigned | Signed;
+//        static constexpr uint32_t int_mask = 
+//                Bool | Char | Short | Int | Long | LLong;
+//        static constexpr uint32_t float_mask = 
+//                Float | Double | LDouble;
+//    private:
+//        uint32_t m_type;
+//    public:
+//        type_arith(uint32_t tp)
+//            :type(tp & qual_mask), m_type(tp & base_mask) {}
+//        type_arith(uint32_t qual, uint32_t tp)
+//            :type(qual), m_type(tp) {}
+        
+//        unsigned int size() const override;
+        
+//        bool is_complete() const override {return true;}
+//        bool is_scalar() const override {return true;}
+//        bool is_arithmetic() const override {return true;}
+//        bool is_integer() const override {return m_type & int_mask;}
+//        bool is_float() const override {return m_type & float_mask;}
+//        bool is_signed() const override;
+//        bool is_unsigned() const override {return m_qual & Unsigned;}
+        
+//        bool compatible(const type&) const override;
+//        bool can_cast(const type&) const override;
+        
+//        void merge(uint32_t) override;
+        
+//        type_arith* copy() const override {
+//            return new type_arith(m_qual, m_type);
+//        }
+        
+//        type_arith* derived() const override {
+//            return new type_arith(0, m_type);
+//        }
+        
+//        std::string to_string() const override;
+        
+//        unsigned int rank() const;
+        
+//        void set_unsigned();
+//        void set_signed();
+        
+//        bool operator==(const type &t) const override {
+//            if(!t.is_arithmetic()) return false;
+//            auto &&arith = reinterpret_cast<const type_arith&>(t);
+//            return (m_qual | m_type) == (arith.m_qual | arith.m_type);
+//        }
+//};
+
+//// zero-lengthed array not supported
+//// variadic length array not supported
+//class type_array: public type {
+//    friend class type_table;
+//    private:
+//        unsigned int m_len;
+//        type        *m_base;
+//    public:
+//        type_array(uint32_t qual, type *t)
+//            :type(qual, ARRAY), m_len(0), m_base(t) {}
+        
+//        type_array(uint32_t qual, unsigned int l, type *t)
+//            :type(qual, ARRAY), m_len(l), m_base(t) {}
+        
+//        ~type_array() {delete m_base;}
+        
+//        unsigned int size() const override {
+//            return m_len * m_base->size();
+//        }
+        
+//        bool is_complete() const override {return m_len != 0;}
+//        bool is_aggregate() const override {return true;}
+        
+//        bool compatible(const type&) const override {
+            
+//        }
+        
+//        bool can_cast(const type &t) const override {
+//            if(!t.is_array() && !t.is_pointer()) return false;
+//            return type_ptr(derived())->operator==(*type_ptr(t.derived()));
+//        }
+        
+//        void merge(uint32_t t) override {m_base->merge(t);}
+        
+//        type_array* copy() const override {
+//            return new type_array(m_qual, m_len, m_base->copy());
+//        }
+        
+//        type* derived() const override {
+//            return m_base->copy();
+//        }
+        
+//        std::string to_string() const override;
+        
+//        void set_len(unsigned int l) {m_len = l;}
+        
+//        // you must ensure the base pointer is nullptr
+//        void set_base(type *t) {
+//            auto base = &m_base;
+//            while((*base) && (*base)->is_array()) {
+//                auto &&ptr = reinterpret_cast<type_array*>(*base);
+//                base = &ptr->m_base;
+//            }
+//            *base = t;
+//        }
+        
+//        bool operator==(const type &t) const override {
+//            if(!t.is_array()) return false;
+//            auto &&arr = reinterpret_cast<const type_array&>(t);
+//            return m_len == arr.m_len && m_base->operator==(*arr.m_base);
+//        }
+//};
+
+//class type_pointer: public type {
+//    friend class type_table;
+//    private:
+//        type *m_base;
+//    public:
+//        type_pointer(uint32_t qual, type *t)
+//            :type(qual, POINTER), m_base(t) {}
+        
+//        ~type_pointer() {delete m_base;}
+        
+//        unsigned int size() const override {return size_ptr;}
+        
+//        bool is_scalar() const override {return true;}
+//        bool is_complete() const override {return true;}
+        
+//        bool compatible(const type&) const override;
+        
+//        bool can_cast(const type &t) const override {
+//            return t.is_integer() && t.size() >= size_ptr;
+//        }
+        
+//        void merge(uint32_t t) override {m_base->merge(t);}
+        
+//        std::string to_string() const override {
+//            return m_base->to_string() += "*";
+//        }
+        
+//        type_pointer* copy() const override {
+//            return new type_pointer(m_qual, m_base->copy());
+//        }
+        
+//        type* derived() const override {
+//            return m_base->copy();
+//        }
+        
+//        // you must ensure the base pointer is nullptr
+//        void set_base(type *t) {
+//            auto base = &m_base;
+//            while((*base) && (*base)->is_pointer()) {
+//                auto &&ptr = reinterpret_cast<type_pointer*>(*base);
+//                base = &ptr->m_base;
+//            }
+//            *base = t;
+//        }
+        
+//        bool operator==(const type &t) const override {
+//            if(!t.is_pointer()) return false;
+//            auto ptr = reinterpret_cast<const type_pointer&>(t);
+//            return m_base->operator==(*ptr.m_base);
+//        }
+//};
+
+//class type_struct: public type {
+//    friend class type_table;
+//    private:
+//        field_list m_fields;
+//        bool       m_complete;
+//    public:
+//        type_struct(uint32_t qual)
+//            :type(qual, STRUCT), m_fields(), m_complete(false) {}
+        
+//        type_struct(uint32_t qual, field_list &&l)
+//            :type(qual, STRUCT), m_fields(std::move(l)), m_complete(true) {}
+        
+//        virtual unsigned int size() const override;
+        
+//        bool is_complete() const override {return m_complete;}
+//        bool is_aggregate() const override {return true;}
+        
+//        type_struct* copy() const override {
+//            auto list = m_fields;
+//            return new type_struct(m_qual, std::move(list));
+//        }
+        
+//        void set_list(field_list &&l) {
+//            m_fields = std::move(l);
+//            m_complete = true;
+//        }
+        
+//        bool operator==(const type &t) const override {
+//            if(!t.is_struct()) return false;
+//            auto str = reinterpret_cast<const type_struct&>(t);
+//            return m_complete == str.m_complete && m_fields == str.m_fields;
+//        }
+//};
+
+//class type_union: public type {
+//    friend class type_table;
+//    private:
+//        field_list m_fields;
+//        bool       m_complete;
+//    public:
+//        type_union(uint32_t qual)
+//            :type(qual, UNION), m_fields(), m_complete(false) {}
+        
+//        type_union(uint32_t qual, field_list &&l)
+//            :type(qual, UNION), m_fields(std::move(l)), m_complete(true) {}
+        
+//        virtual unsigned int size() const override;
+        
+//        type_union* copy() const override {
+//            auto list = m_fields;
+//            return new type_union(m_qual, std::move(list));
+//        }
+        
+//        void set_list(field_list &&l) {
+//            m_fields = std::move(l);
+//            m_complete = true;
+//        }
+        
+//        bool operator==(const type &t) const override {
+//            if(!t.is_union()) return false;
+//            auto uni = reinterpret_cast<const type_union&>(t);
+//            return m_complete == uni.m_complete && m_fields == uni.m_fields;
+//        }
+//};
+
+//class type_func: public type {
+//    friend class type_table;
+//    private:
+//        type      *m_ret;
+//        param_list m_params;
+//    public:
+//        type_func(type *tp, param_list &&p)
+//            :type(0, FUNC), m_ret(tp), m_params(std::move(p)) {}
+        
+//        bool is_complete() const override {return true;}
+        
+//        type_func* copy() const override {
+//            auto ret = m_ret->copy();
+//            auto list = m_params;
+//            return new type_func(ret, std::move(list));
+//        }
+        
+//        bool operator==(const type &t) const override {
+//            if(!t.is_func()) return false;
+//            auto fun = reinterpret_cast<const type_func&>(t);
+//            return m_ret->operator==(*fun.m_ret) && m_params == fun.m_params;
+//        }
+//};
+
+//struct struct_field {
+//    std::string  m_name;
+//    type        *m_type;
+//    unsigned int m_off; // offset
+//    unsigned int m_aln; // alignment
+    
+//    struct_field(const std::string &name, type *tp)
+//        :m_name(name), m_type(tp), m_off(0), m_aln(0) {}
+//};
+
+//class type_table {
+//    private:
+//        type_void                          m_void;
+//        std::unordered_map<uint32_t, type> m_base;
+//        std::vector<type_pointer>          m_ptr;
+//        std::vector<type_array>            m_arr;
+//        std::vector<type_struct>           m_str;
+//        std::vector<type_union>            m_uni;
+//        std::vector<type_func>             m_fun;
+//    public:
+//        type_table();
+        
+//        type* find(const type&);
+        
+//        type* find_ptr(const type_pointer&);
+//        type* find_arr(const type_array&);
+//        type* find_str(const type_struct&);
+//        type* find_uni(const type_union&);
+//        type* find_fun(const type_func&);
+//};
+
+//bool valid_type(uint32_t);
+
+//// happens in specifier_qualifier_list
+//// try to merge the two types,
+//// if success return the new type, if fail return nullptr
+//// do not do nullptr check
+//type* merge(type*, type*);
+
+//type_pointer* make_pointer(uint32_t, type*);
+//type_array*   make_array(uint32_t, unsigned int, type*);
+
+qual_type parser::decl_specifiers(uint8_t &stor) {
+    bool visited = false;
+    uint32_t tp = 0, qual = 0;
+    qual_type res;
+    for(;;) {
+        auto tok = m_cpp.get();
+        mark_pos(tok);
+        auto &&attr = tok->m_attr;
+        switch(attr) {
+            // storage-class-specifier
+            case KeyTypedef: case KeyStatic: case KeyExtern:
+            case KeyRegister: case KeyInline: 
+                stor = apply_storage(stor, attr); break;
+            // type-specifier
+            case KeyStruct: case KeyUnion:
+                if(res) error(tok->m_loc, "Invalid type specifier combination");
+                m_cpp.unget(tok.release());
+                res = struct_union_specifier();
+                break;
+            //case KeyEnum:
+            //    enum_specifier(); break;
+            case KeyVoid: case KeyBool: case KeyChar: case KeyShort: 
+            case KeyInt: case KeyLong: case KeyFloat: case KeyDouble:
+            case KeyComplex: case KeySigned: case KeyUnsigned:
+                tp = apply_spec(tp, attr); break;
+            case KeyConst: case KeyVolatile: case KeyRestrict:
+                qual = apply_qual(qual, attr); break;
+            case Identifier: {
+                auto id = m_curr->find(tok->to_string());
+                if(id->stor == Typedef) 
+                    res = id->m_type;
+                else 
+                    error(tok->m_loc, "%s does not name a type", tok->to_string());
+                break;
+            }
+            default: 
+                if(!visited) 
+                    error(tok->m_loc, "Expecting a declaration-specifier, but get %s", tok->to_string());
+                else {
+                    m_cpp.unget(tok.release());
+                    if(res) { // is struct or union
+                        res.set_qual(qual); return res;
+                    } else if(tp & Void) 
+                        return make_void();
+                    else 
+                        return make_qual(qual, make_qual_arith(tp));
+                }
+        }
+        visited = true;
+    }
+}
+
+type* parser::type_specifier() {
+    auto tok = m_cpp.get();
+    switch(tok->m_attr) {
+        case KeyVoid: return new type_void;
+        case KeyBool: case KeyChar: case KeyShort: 
+        case KeyInt: case KeyLong: case KeyFloat: case KeyDouble:
+        case KeyComplex: case KeySigned: case KeyUnsigned:
+            return new type_arith(0, append_sq(0, tok.get()));
+        case KeyStruct: case KeyUnion:
+            return struct_union_specifier();
+        case KeyEnum:
+            return enum_specifier();
+        case Identifier: {
+            auto id = m_curr->find_id(tok->to_string());
+            if(id->s_attr == Typedef) return id->m_type->copy();
+            else error(tok->m_loc, "%s does not name a type", tok->to_string());
+            break;
+        }
+        default:
+            error(tok->m_loc, "%s does not name a type", tok->to_string());
+            return nullptr;
+    }
+}
+/*---------------------------------------------------.
+|   specifier_qualifier_list                         |
+|       : type_specifier specifier_qualifier_list    |
+|       | type_specifier                             |
+|       | type_qualifier specifier_qualifier_list    |
+|       | type_qualifier                             |
+|       ;                                            |
+`---------------------------------------------------*/
+qual_type parser::specifier_qualifier_list(uint8_t qual, uint32_t base) {
+    bool visited = false;
+    for(;;) {
+        auto tok = m_cpp.get();
+        mark_pos(tok);
+        switch(tok->m_attr) {
+            case KeyVoid: case KeyBool: case KeyChar: case KeyShort: 
+            case KeyInt: case KeyLong: case KeyFloat: case KeyDouble:
+            case KeyComplex: case KeySigned: case KeyUnsigned:
+                base = apply_spec(base, tok->m_attr); break;
+            case KeyConst: case KeyVolatile: case KeyRestrict: 
+                qual = apply_qual(qual, tok->m_attr);
+            case Identifier: {
+                auto tpname = m_curr->find(tok->to_string());
+                
+            }
+            default:
+                if(!visited) error(tok->m_loc, "Expecting type specifier or qualifier");
+                else return make_qual(qual, make_qual_arith(base));
+        }
+        visited = true;
+    }
+}
+ast_id* parser::direct_declarator(uint8_t stor, qual_type tp) {
+    auto tok = m_cpp.get();
+    token *ptok = nullptr; // location of identifier name
+    type_pointer *comp = nullptr; // compound pointer type
+    switch(tok->m_attr) {
+        case Identifier:
+            ptok = tok.release(); break;
+        case LeftParen: 
+            comp = pointer();
+            tok = m_cpp.get();
+            if(tok->m_attr != Identifier) 
+                error(tok->m_loc, "Identifier required");
+            ptok = tok.release();
+            m_cpp.expect(RightParen);
+            break;
+        default: 
+            error(tok->m_loc, "Identifier required");
+    }
+    for(;;) {
+        
+    }
+}
+void scope::insert(token *tok, qual_type tp, ast_decl *decl, uint8_t stor) {
+    auto id = m_table.find(tok->to_string());
+    
+    if(id != m_table.end()) {
+        print_fpos(tok->m_loc);
+        std::fprintf(stderr, "Redeclaration of \"%s\", previous declared here\n", tok->to_string());
+        print_fpos(decl->m_tok->m_loc);
+        throw 0; // error signal
+    }
+    
+    m_table.insert({tok->to_string(), ast_var(tok, tp, decl, stor)});
+}
+
+void scope::insert_tag(token *tok, qual_type tp, ast_decl *decl) {
+    auto tag = m_table.find(tok->to_string());
+    ast_decl *id = nullptr;
+    if(tag != m_table.end()) {
+        auto tag_type = tag->second.m_type;
+        if(tag_type->is_complete()) 
+            error(tok->m_loc, "Overriding a complete type declaration");
+        else if(tag_type->is_struct() || tag_type->is_union() || tag_type->is_enum()) 
+            id = &tag->second;
+        else {
+            print_fpos(tok->m_loc);
+            std::fprintf(stderr, "Tag declaration conflicts with \"%s\", previous declared here\n", tag->second.m_tok->to_string());
+            print_fpos(tag->second.m_tok->m_loc);
+            throw 0;
+        }
+    }
+    
+    if(id && tp->compatible(*id->m_type.get()))
+        return;
+    
+    m_table.insert({std::string(tok->to_string()), ast_decl(tok, tp, decl, 0)}); // why?
+}
+
+struct ast_func: public ast_decl {
+    uint8_t  stor;
+    arg_list params;
+};
+virtual ast_func*       to_func() {return nullptr;}
+virtual const ast_func* to_func() const {return nullptr;}
+unsigned int val_of(int ch) {
+    if(std::isdigit(ch)) return ch - '0';
+    if(std::isxdigit(ch)) return std::tolower(ch) - 'a';
+    // bigger than everything
+    return 16;
+}
+
+void add_num(uint64_t &res, unsigned int radix, unsigned int num) {
+    switch(radix) {
+        case 2: res <<= 1; break;
+        case 8: res <<= 3; break;
+        case 10: res *= 10; break;
+        case 16: res <<= 4; break;
+    }
+    res += num;
+}
+
+void parse_integer_type(const char *str, uint32_t &tp) {
+    for(auto p = str; *p; ++p) {
+        switch(*p) {
+            case 'u': case 'U': tp = apply_spec(tp, Unsigned); break;
+            case 'l': case 'L': tp = apply_spec(tp, Long); break;
+            default: error("Unknown type specifier %s", str);
+        }
+    }
+    if(!(tp & Base))
+        tp |= Int;
+}
+
+void parse_float_type(const char *str, uint32_t &tp) {
+    for(auto p = str; *p; ++p) {
+        switch(*p) {
+            case 'f': case 'F': tp = apply_spec(tp, Float); break;
+            case 'l': case 'L': tp |= (Long|Double); break;
+            default: error("Unknown type specifier %s", str);
+        }
+    }
+    if(!(tp & Base))
+        tp |= Double;
+}
+
+// TODO: overflow error
+uint64_t parse_integer(const char *str, uint32_t &tp) {
+    uint64_t res = 0;
+    unsigned int radix = 10;
+    
+    auto p = str;
+    
+    if(*p == '0') {
+        switch(*++p) {
+            case 'b': case 'B': radix = 2; break;
+            case 'x': case 'X': radix = 16; break;
+            case '0': case '1': case '2': case '3':
+            case '4': case '5': case '6': case '7':
+                radix = 8; --p; break;
+            default:
+                parse_integer_type(p, tp);
+                return res;
+        }
+    } else 
+        add_num(res, radix, val_of(*p++));
+    
+    for(; *p; ++p) {
+        if(std::isxdigit(*p)) {
+            auto val = val_of(*p);
+            if(val >= radix)
+                error("In pp-number %s:\nInvalid character %c in given radix %u", str, *p, radix);
+            add_num(res, radix, val_of(*p));
+        } else {
+            parse_integer_type(p, tp);
+            return res;
+        }
+    }
+    tp |= Int;
+    return res;
+}
+
+void parse_exponent(const char* &pos, int &exp) {
+    bool sign = *pos == '-';
+    if(*pos == '-' || *pos == '+') ++pos;
+    for(; *pos; ++pos) {
+        if(std::isdigit(*pos)) {
+            exp *= 10;
+            exp += *pos - '0';
+        } else break;
+    }
+    
+    if(sign) exp = -exp;
+}
+
+void parse_float(const char *str, int &exp, uint64_t &mant, uint32_t &tp) {
+    bool has_point = false;
+    for(auto p = str; *p; ++p) {
+        if(*p == '.')
+            has_point = true;
+        else if(std::isdigit(*p)) {
+            auto &&n = (has_point ? mant : exp);
+            n *= 10;
+            n += *p - '0';
+        } else {
+            if(*p == 'e' || *p == 'E')
+                parse_exponent(++p, exp);
+            parse_float_type(p, tp);
+            return;
+        }
+    }
+}
+
+float packf(unsigned int exp, uint64_t mant) {
+    uint32_t res = 0;
+    
+    
+    
+    
+    return reinterpret_cast<float&>(res);
+}
+
+double packd(unsigned int, uint64_t) {}
+
+long double packld(unsigned int, uint64_t) {
+    error("Unimplemented type: long double");
+    return 0;
+}
+class scope {
+    public:
+        typedef std::unordered_map<std::string, stmt_decl> table_t;
+        typedef std::unordered_map<std::string, stmt*>    ltable_t;
+    private:
+        table_t    m_table;
+        ltable_t   m_labels;
+        scope     *m_parent;
+        
+        scope_kind m_kind;
+    private:
+        stmt_decl* find(const std::string&);
+        stmt_decl* find_current(const std::string&);
+    public:
+        explicit scope(scope *pa = nullptr, scope_kind kind = BLOCK_SCOPE)
+            :m_table(), m_labels(), m_parent(pa), m_kind(kind) {}
+        
+        stmt_decl* find(token*);
+        stmt_decl* find_current(token*);
+        
+        stmt_decl* find_tag(token*);
+        stmt_decl* find_tag_current(token*);
+        
+        stmt* find_label(token*);
+        
+        // token must be a Identifier, and a tag has no qualifier
+        stmt_decl* declare(token*, qual_type, uint8_t=0, ast_expr* = nullptr);
+        stmt_decl* declare_tag(token*, type*);
+        void      declare_label(token*, stmt*);
+        
+        scope_kind kind() const {return m_kind;}
+        void       set_kind(scope_kind k) {m_kind = k;}
+};
+#include "scope.hpp"
+#include "error.hpp"
+#include "mempool.hpp"
+
+using namespace compiler;
+
+static mempool<scope> scope_pool{};
+
+static unsigned int anony = 0;
+
+// a tag and an identifier may have same name, so make them different
+static std::string tagged(token *tok) {return std::string(tok->to_string()) + "@";}
+
+scope* compiler::make_scope(scope *s, scope_kind k) {return new (scope_pool.malloc()) scope(s, k);}
+
+stmt_decl* scope::find_current(const std::string &name) {
+    auto it = m_table.find(name);
+    return it == m_table.end() ?
+           nullptr :
+           &it->second;
+}
+
+stmt_decl* scope::find(const std::string &name) {
+    auto res = find_current(name);
+    if(res) return res;
+    return m_parent ? m_parent->find(name) : nullptr;
+}
+
+stmt_decl* scope::find_current(token *tok) {
+    return find_current(tok->to_string());
+}
+
+stmt_decl* scope::find(token *tok) {
+    return find(tok->to_string());
+}
+
+stmt_decl* scope::find_tag_current(token *tok) {
+    return find_current(tagged(tok));
+}
+
+stmt_decl* scope::find_tag(token *tok) {
+    return find(tagged(tok));
+}
+
+stmt* scope::find_label(token *tok) {
+    auto s = this;
+    for(; s && s->m_kind != FUNCTION_SCOPE; )
+        s = s->m_parent;
+    if(!s) return nullptr;
+    auto it = s->m_labels.find(tok->to_string());
+    return it == s->m_labels.end() ? nullptr : it->second;
+}
+
+stmt_decl* scope::declare(token *tok, qual_type tp, uint8_t stor, ast_expr *init) {
+    std::string name{};
+    if(!tok) {
+        if(m_kind != PROTO_SCOPE)
+            error(*epos, "Missing identifier name");
+        name = "[ANONY";
+        name += std::to_string(anony++);
+        name += ']';
+    } else 
+        name = tok->to_string();
+    
+    auto decl = find_current(name);
+    if(decl) {
+        print_fpos(tok->m_loc);
+        std::fprintf(stderr, "Redeclaration of \"%s\", previous declaration \n", name.c_str());
+        print_fpos(decl->m_tok->m_loc);
+        throw 0; // error signal
+    }
+    return &m_table.insert({name, ast_var(tok, tp, stor, init)}).first->second;
+}
+
+stmt_decl* scope::declare_tag(token *tok, type *tp) {
+    auto name = tagged(tok);
+    auto decl = find_current(name);
+    auto qual = make_qual(tp);
+    if(decl) {
+        auto decl_t = decl->to_tag();
+        if(decl_t->is_complete()) {
+            print_fpos(tok->m_loc);
+            std::fprintf(stderr, "Redeclaration of complete type \"%s\", previous declaration \n", name.c_str());
+            print_fpos(decl->m_tok->m_loc);
+            throw 0; // error signal
+        } else if(!decl_t->compatible(*tp)) {
+            print_fpos(tok->m_loc);
+            std::fprintf(stderr, "Incompatible declaration of tag \"%s\", previous declaration \n", name.c_str());
+            print_fpos(decl->m_tok->m_loc);
+        } else 
+            return decl;
+    }
+    return &m_table.insert({std::move(name), stmt_decl(tok, qual)}).first->second;
+}
+
+void scope::declare_label(token *tok, stmt *dest) {
+    auto name = tok->to_string();
+    
+    auto s = this;
+    for(; s && s->m_kind != FUNCTION_SCOPE; )
+        s = s->m_parent;
+    if(!s)
+        error(tok->m_loc, "Labels can only have function scope");
+    
+    auto &&labels = s->m_labels;
+    
+    auto it = labels.find(name);
+    if(it != labels.end())
+        error(tok->m_loc, "Redeclaration of label \"%s\"", name);
+    
+    labels.insert({name, dest});
+}
+std::string type_struct::to_string() const {
+    std::string res{"struct"};
+    if(!is_complete())
+        return res += ":tag";
+    res += '{';
+    for(auto &&member: m_members) {
+        res += member->m_type.to_string();
+        res += ' ';
+        res += member->m_tok->to_string();
+        res += ';';
+    }
+    return res += '}';
+}
+#ifndef __COMPILER_VIRTUAL_MACHINE__
+#define __COMPILER_VIRTUAL_MACHINE__
+
+#include "ast.hpp"
+#include "mempool.hpp"
+
+#include <map>
+#include <vector>
+
+namespace compiler {
+
+enum vm_op {
+    VM_Allocate,
+    VM_Goto,
+    VM_If,
+    VM_Exec,
+    VM_Return,
+    VM_NOP,
+};
+
+struct code {
+    vm_op op;
+    ast_expr *e;
+    unsigned s1;
+    unsigned s2;
+    
+    code(vm_op o, ast_expr *_e = nullptr, unsigned S1 = -1, unsigned int S2 = -1)
+        :op(o), e(_e), s1(S1), s2(S2) {}
+};
+
+struct frame {
+    sizepool mem;
+};
+
+class vm: public visitor {
+    public:
+        typedef std::vector<code> code_list;
+        typedef std::map<ast_func*, code_list> func_list;
+    private:
+        func_list funcs;
+    private:
+        void visit_constant(ast_constant*) override;
+        void visit_label(ast_label*) override;
+        void visit_object(ast_object*) override;
+        void visit_enum(ast_enum*) override;
+        void visit_func(ast_func*) override;
+        void visit_unary(ast_unary*) override;
+        void visit_cast(ast_cast*) override;
+        void visit_binary(ast_binary*) override;
+        void visit_ternary(ast_ternary*) override;
+        void visit_call(ast_call*) override;
+        
+        void visit_stmt(stmt*) override;
+        void visit_compound(stmt_compound*) override;
+        void visit_jump(stmt_jump*) override;
+        void visit_return(stmt_return*) override;
+        void visit_if(stmt_if*) override;
+        void visit_expr(stmt_expr*) override;
+        void visit_decl(stmt_decl*) override;
+    public:
+        vm():funcs() {}
+        
+        code_list& build(ast_func*);
+        
+        uint32_t run(ast_func*);
+};
+
+} // namespace compiler
+
+#endif // __COMPILER_VIRTUAL_MACHINE__
+
+#include "vm.hpp"
+
+#include <utility>
+
+using namespace compiler;
+
+struct var {
+    uint32_t val;
+    uint32_t _addr; // -1 means this is invalid
+    
+    static std::vector<uint32_t> mem;
+    
+    var(uint32_t v, uint32_t a = 0xffffffff):val(v), _addr(a) {}
+    
+    uint32_t value() {
+        if(_addr != 0xffffffff) return mem[_addr];
+        return val;
+    }
+    
+    uint32_t& lvalue() {
+        return mem[addr()];
+    }
+    
+    uint32_t addr() const {
+        if(_addr != 0xffffffff) return _addr;
+        error("Runtime error: address of rvalue");
+        return 0;
+    }
+};
+
+std::vector<uint32_t> var::mem{};
+
+static std::vector<var> stack{};
+std::vector<uint32_t> &mem = var::mem; // dirty hack
+// uint32_t is its address
+static std::map<ast_object*, uint32_t> map{};
+#define LVAL l.value() /* value of left operand */
+#define RVAL r.value() /* value of right operand */
+#define LLVAL l.lvalue() /* lvalue of left operand */
+#define RLVAL r.lvalue() /* lvalue of right operand */
+#define LADD l.addr() /* address of left operand */
+#define RADD r.addr() /* address of right operand */
+
+static var pop() {
+    auto val = stack.back();
+    stack.pop_back();
+    return val;
+}
+
+static void push(var val) {
+    stack.push_back(val);
+}
+
+static vm::code_list codes{};
+static std::map<stmt*, unsigned> stmt_map{{nullptr, 0}};
+static unsigned id = 0;
+
+static std::map<unsigned, std::pair<stmt*, stmt*>> resolve_map{};
+
+static unsigned pc = 0;
+static std::vector<unsigned> st{};
+
+vm::code_list& vm::build(ast_func *func) {
+    auto f = funcs.find(func);
+    if(f != funcs.end()) return f->second;
+    
+    codes.clear();
+    stmt_map.clear();
+    resolve_map.clear();
+    id = 0;
+    
+    auto &&stmts = func->body->m_stmt;
+    // TODO: one-pass id generating
+    for(auto &s: stmts)
+        s->accept(this);
+    
+    for(auto &&item: resolve_map) {
+        auto &&s = codes[item.first];
+        switch(s.op) {
+            case VM_If: 
+                s.s2 = stmt_map.at(item.second.second);
+            case VM_Goto:
+                s.s1 = stmt_map.at(item.second.first); 
+                break;
+            default: error("Runtime error: invalid jump statements");
+        }
+    }
+    
+    return funcs.emplace(func, std::move(codes)).first->second;
+}
+
+void vm::visit_constant(ast_constant *a) {
+    push(a->ival);
+}
+
+void vm::visit_label(ast_label *a) {}
+
+void vm::visit_object(ast_object *a) {
+    push(var{0, map.at(a)});
+}
+
+void vm::visit_enum(ast_enum *a) {
+    push(a->val.ival);
+}
+
+void vm::visit_func(ast_func *a) {
+    build(a);
+}
+
+void vm::visit_unary(ast_unary *a) {
+    a->operand->accept(this);
+    
+    auto l = pop();
+    
+    switch(a->op) {
+        case Inc: ++LLVAL; push(l); break;
+        case Dec: --LLVAL; push(l); break;
+        case Dereference: push(var{0, mem[LVAL]}); break;
+        case AddressOf: push(LADD); break;
+        case PostInc: push(LLVAL); ++LLVAL; break;
+        case PostDec: push(LLVAL); --LLVAL; break;
+        case Negate: LLVAL = -LLVAL; push(l); break;
+        case ArithmeticOf: push(l); break;
+        case BitNot: push(~LVAL); break;
+        case LogicalNot: push(!LVAL); break;
+    }
+}
+
+void vm::visit_cast(ast_cast *a) {
+    a->operand->accept(this);
+}
+
+void vm::visit_binary(ast_binary *a) {
+    a->lhs->accept(this);
+    a->rhs->accept(this);
+    
+    auto r = pop();
+    auto l = pop();
+    switch(a->op) {
+        case Comma: push(RVAL); break;
+        // without dereferencing
+        case Add: push(LVAL + RVAL); break;
+        case Sub: push(LVAL - RVAL); break;
+        case Div: push(LVAL / RVAL); break;
+        case Mod: push(LVAL % RVAL); break;
+        case BitOr: push(LVAL | RVAL); break;
+        case BitXor: push(LVAL ^ RVAL); break;
+        case LeftShift: push(LVAL << RVAL); break;
+        case RightShift: push(LVAL >> RVAL); break;
+        case LessThan: push(LVAL < RVAL); break;
+        case LessEqual: push(LVAL <= RVAL); break;
+        case GreaterThan: push(LVAL > RVAL); break;
+        case GreaterEqual: push(LVAL >= RVAL); break;
+        case Equal: push(LVAL == RVAL); break;
+        case NotEqual: push(LVAL != RVAL); break;
+        case LogicalAnd: push(LVAL && RVAL); break;
+        case LogicalOr: push(LVAL || RVAL); break;
+        // with dereferencing
+        case Assign: LLVAL = RVAL; push(l); break;
+        case AddAssign: LLVAL += RVAL; push(l); break;
+        case SubAssign: LLVAL -= RVAL; push(l); break;
+        case MulAssign: LLVAL *= RVAL; push(l); break;
+        case DivAssign: LLVAL /= RVAL; push(l); break;
+        case ModAssign: LLVAL %= RVAL; push(l); break;
+        case BitAndAssign: LLVAL &= RVAL; push(l); break;
+        case BitOrAssign: LLVAL |= RVAL; push(l); break;
+        case BitXorAssign: LLVAL ^= RVAL; push(l); break;
+        case LeftShiftAssign: LLVAL <<= RVAL; push(l); break;
+        case RightShiftAssign: LLVAL >>= RVAL; push(l); break;
+        case Subscript: push(var{0, LVAL + RVAL}); break;
+    }
+}
+
+void vm::visit_ternary(ast_ternary *a) {
+    a->cond->accept(this);
+    a->yes->accept(this);
+    a->no->accept(this);
+    
+    auto _false = pop();
+    auto _true  = pop();
+    auto _cond  = pop();
+    
+    push(_cond.value() ? _true : _false);
+}
+
+void vm::visit_call(ast_call *a) {
+    
+}
+
+void vm::visit_stmt(stmt *a) {
+    stmt_map.insert({a, id++});
+    codes.emplace_back(VM_NOP);
+}
+
+void vm::visit_compound(stmt_compound *a) {
+    for(auto &s: a->m_stmt){
+        if(s) s->accept(this);
+    }
+}
+
+void vm::visit_jump(stmt_jump *a) {
+    stmt_map.insert({a, id});
+    
+    auto it = stmt_map.find(a);
+    if(it == stmt_map.end()) {
+        resolve_map.insert({id, {a->label->dest, nullptr}});
+        codes.emplace_back(VM_Goto, nullptr);
+    } else 
+        codes.emplace_back(VM_Goto, nullptr, it->second);
+    ++id;
+}
+
+void vm::visit_return(stmt_return *a) {
+    stmt_map.insert({a, id++});
+    codes.emplace_back(VM_Return, a->val);
+}
+
+void vm::visit_if(stmt_if *a) {
+    stmt_map.insert({a, id});
+    auto y = a->yes, n = a->no;
+    unsigned int s1, s2;
+    static auto label = [](ast_label *l, unsigned &s) -> bool {
+        if(!l) {s = -1; return true;}
+        auto it = stmt_map.find(l->dest);
+        if(it != stmt_map.end()) {
+            s = it->second;
+            return true;
+        }
+        return false;
+    };
+    static auto dest = [](ast_label *l) {
+        return l ? l->dest : nullptr;
+    };
+    
+    bool _s1 = label(y, s1), _s2 = label(n, s2);
+    if(!(_s1 && _s2))
+        resolve_map.insert({id, {dest(y), dest(n)}});
+    codes.emplace_back(VM_If, a->cond, s1, s2);
+    ++id;
+}
+
+void vm::visit_expr(stmt_expr *a) {
+    stmt_map.insert({a, id});
+    codes.emplace_back(VM_Exec, a->expr);
+    ++id;
+}
+
+void vm::visit_decl(stmt_decl *a) {
+    stmt_map.insert({a, id});
+    codes.emplace_back(VM_Allocate, reinterpret_cast<ast_expr*>(&a->inits), a->inits.size());
+    ++id;
+}
+
+uint32_t vm::run(ast_func *a) {
+    auto codes = build(a);
+    
+    for(; pc < codes.size(); ++pc) {
+        auto &code = codes[pc];
+        switch(code.op) {
+            case VM_NOP: continue;
+            case VM_If: {
+                code.e->accept(this);
+                auto res = pop();
+                if(code.s1 != -1 && res.value())
+                    pc = code.s1;
+                else if(code.s2 != -1 && !res.value())
+                    pc = code.s2;
+                continue;
+            }
+            case VM_Exec: code.e->accept(this); break;
+            case VM_Return: 
+                if(code.e) code.e->accept(this);
+                if(!st.empty()) {
+                    pc = st.back();
+                    st.pop_back();
+                } else return pop().value();
+        }
+    }
+}
+
+
+
+
+#include "ast.hpp"
+#include "error.hpp"
+#include "visitor.hpp"
+#include "mempool.hpp"
+
+#include <map>
+#include <deque>
+#include <vector>
+#include <cstdint>
+#include <iostream>
+
+using namespace compiler;
+
+struct var {
+    uint32_t val;
+    uint32_t _addr; // -1 means this is invalid
+    
+    static std::vector<uint32_t> mem;
+    
+    var(uint32_t v, uint32_t a = 0xffffffff):val(v), _addr(a) {}
+    
+    uint32_t value() {
+        if(_addr != 0xffffffff) return mem[_addr];
+        return val;
+    }
+    
+    uint32_t& lvalue() {
+        return mem[addr()];
+    }
+    
+    uint32_t addr() const {
+        if(_addr != 0xffffffff) return _addr;
+        error("Runtime error: address of rvalue");
+        return 0;
+    }
+};
+
+std::vector<uint32_t> var::mem{};
+
+static std::deque<var> stack{};
+std::vector<uint32_t> &mem = var::mem; // dirty hack
+// uint32_t is its address
+static std::map<ast_object*, uint32_t> map{};
+
+
+struct code {
+    enum kind {
+        EXPR, IF, JUMP, RETURN, EMPTY
+    };
+    
+    kind op;
+    ast_expr *op1;
+    stmt *s1;
+    stmt *s2;
+};
+
+std::vector<code>  codes{};
+
+static std::vector<stmt*> stmts{};
+static stmt              *pc{nullptr};
+static std::deque<stmt*>  st{};
+static std::map<ast_func*, stmt*> funcs{};
+
+#define LVAL l.value() /* value of left operand */
+#define RVAL r.value() /* value of right operand */
+#define LLVAL l.lvalue() /* lvalue of left operand */
+#define RLVAL r.lvalue() /* lvalue of right operand */
+#define LADD l.addr() /* address of left operand */
+#define RADD r.addr() /* address of right operand */
+
+static var pop() {
+    auto val = stack.back();
+    stack.pop_back();
+    return val;
+}
+
+static void push(var val) {
+    stack.push_back(val);
+}
+
+static uint32_t allocate(ast_object *obj, uint32_t init = 0) {
+    auto it = map.find(obj);
+    if(it == map.end()) {
+        map[obj] = mem.size();
+        mem.push_back(init);
+    }
+    return it->second;
+}
+
+static uint32_t allocate(ast_object *obj, ast_expr *init) {
+    auto it = map.find(obj);
+    if(it == map.end()) {
+        map[obj] = mem.size();
+        init->accept();
+        auto res = pop();
+        mem.push_back(res.value());
+    }
+    return it->second;
+}
+
+// array allocator
+static uint32_t allocate(ast_object *obj, init_list &l) {
+    auto it = map.find(obj);
+    if(it == map.end()) {
+        auto index = mem.size();
+        map[obj] = index;
+        mem.resize(index + l.size());
+        // when initializing, all variables are already allocated,
+        // this is ensured in semantic check.
+        for(auto &&expr: l) {
+            expr->visit();
+            auto res = pop();
+            mem.push_back(res.value());
+        }
+    }
+    return it->second;
+}
+
+// RET register, used to store returned value
+// stack1, refers to stack top
+// stack2, refers to second stack top
+
+void ast_object::accept() {
+    push(var{0, map.at(this)});
+}
+
+void ast_constant::accept() {
+    push(ival);
+}
+
+void ast_enum::accept() {
+    push(val.ival);
+}
+
+void ast_unary::accept() {
+    operand->accept();
+    
+    auto l = pop();
+    
+    switch(op) {
+        case Inc: ++LLVAL; push(l); break;
+        case Dec: --LLVAL; push(l); break;
+        case Dereference: push(var{0, mem[LVAL]}); break;
+        case AddressOf: push(LADD); break;
+        case PostInc: push(LLVAL); ++LLVAL; break;
+        case PostDec: push(LLVAL); --LLVAL; break;
+        case Negate: LLVAL = -LLVAL; push(l); break;
+        case ArithmeticOf: push(l); break;
+        case BitNot: push(~LVAL); break;
+        case LogicalNot: push(!LVAL); break;
+    }
+}
+
+void ast_binary::accept() {
+    lhs->accept();
+    rhs->accept();
+    
+    auto r = pop();
+    auto l = pop();
+    switch(op) {
+        case Comma: push(RVAL); break;
+        // without dereferencing
+        case Add: push(LVAL + RVAL); break;
+        case Sub: push(LVAL - RVAL); break;
+        case Div: push(LVAL / RVAL); break;
+        case Mod: push(LVAL % RVAL); break;
+        case BitOr: push(LVAL | RVAL); break;
+        case BitXor: push(LVAL ^ RVAL); break;
+        case LeftShift: push(LVAL << RVAL); break;
+        case RightShift: push(LVAL >> RVAL); break;
+        case LessThan: push(LVAL < RVAL); break;
+        case LessEqual: push(LVAL <= RVAL); break;
+        case GreaterThan: push(LVAL > RVAL); break;
+        case GreaterEqual: push(LVAL >= RVAL); break;
+        case Equal: push(LVAL == RVAL); break;
+        case NotEqual: push(LVAL != RVAL); break;
+        case LogicalAnd: push(LVAL && RVAL); break;
+        case LogicalOr: push(LVAL || RVAL); break;
+        // with dereferencing
+        case Assign: LLVAL = RVAL; push(l); break;
+        case AddAssign: LLVAL += RVAL; push(l); break;
+        case SubAssign: LLVAL -= RVAL; push(l); break;
+        case MulAssign: LLVAL *= RVAL; push(l); break;
+        case DivAssign: LLVAL /= RVAL; push(l); break;
+        case ModAssign: LLVAL %= RVAL; push(l); break;
+        case BitAndAssign: LLVAL &= RVAL; push(l); break;
+        case BitOrAssign: LLVAL |= RVAL; push(l); break;
+        case BitXorAssign: LLVAL ^= RVAL; push(l); break;
+        case LeftShiftAssign: LLVAL <<= RVAL; push(l); break;
+        case RightShiftAssign: LLVAL >>= RVAL; push(l); break;
+        case Subscript: push(var{0, LVAL + RVAL}); break;
+    }
+}
+
+#undef RADD
+#undef LADD
+#undef LLVAL
+#undef RLVAL
+#undef RVAL
+#undef LVAL
+
+void ast_ternary::accept() {
+    cond->accept();
+    yes->accept();
+    no->accept();
+    
+    auto _false = pop();
+    auto _true  = pop();
+    auto _cond  = pop();
+    
+    push(_cond.value() ? _true : _false);
+}
+
+void ast_call::accept() {
+    auto ait = args.begin();
+    // argument list has same length as parameter list
+    for(auto &&param: func->m_type->to_func()->params())
+        allocate(param->to_obj(), *ait);
+    func->body->accept();
+}
+
+void stmt_decl::accept() {
+    if(obj->m_type->is_aggregate()) 
+        allocate(obj, inits);
+    else {
+        if(!inits.empty())
+            allocate(obj, inits.front());
+        else
+            allocate(obj);
+    }
+}
+
+void stmt_compound::accept() {
+    for(auto &&s: m_stmt) 
+        s->visit();
+}
+
+void stmt_jump::accept() {
+    pc = label->dest;
+}
+
+void stmt_return::accept() {
+    if(val) val->accept();
+}
+
+void stmt_if::accept() {
+    cond->accept();
+    auto res = pop();
+    pc = res.value() ? yes->dest : no->dest;
+}
+
+void stmt_expr::accept() {
+    if(expr) expr->accept();
+}
+
+void stmt_if::build() {
+    //codes.emplace_back(code::IF, cond, yes, no);
+}
+void stmt_compound::build() {
+    for(auto &&s: m_stmt)
+        s->build();
+}
+//void stmt_decl::build() {}
+void stmt_jump::build() {
+    
+}
+void stmt_return::build() {}
+void stmt_expr::build() {}
+
+void compiler::print_top() {
+    if(!stack.empty())
+        std::cout << stack.back().value() << std::endl;
+    else
+        std::cout << "result: empty stack" << std::endl;
+}
+struct ast_label: public ast_ident {
+    stmt *dest;
+    
+    explicit ast_label(stmt *d)
+        :ast_ident(nullptr, qual_null), dest(d) {}
+    ast_label(token *tok, stmt *d)
+        :ast_ident(tok, qual_null), dest(d) {}
+    
+    ast_label* to_label() override {return this;}
+    
+    void accept(visitor *v) override {v->visit_label(this);}
+    void print() override;
+};
+ast_label* scope::find_label(token *tok) {
+    auto s = this;
+    while(s && s->m_kind != FUNCTION_SCOPE) 
+        s = s->m_par;
+    if(!s) return nullptr;
+    auto res = s->find_current(labeled(tok));
+    return res ? reinterpret_cast<ast_label*>(res) : nullptr;
+}
+ast_label* scope::declare_label(token *tok, stmt *dest) {
+    auto s = this;
+    while(s && s->m_kind != FUNCTION_SCOPE) 
+        s = s->m_par;
+    if(!s)
+        error(tok, "Labels can only be declared inside a function");
+    auto name = tok->to_string();
+    auto label = s->find_label(tok);
+    if(label) 
+        error(tok, "\"%s\" is already declared as a label", name);
+    auto &&pair = m_table.insert({name, make_label(tok, dest)});
+    return reinterpret_cast<ast_label*>(pair.first->second);
+}
+void print() override {
+    auto tp = m_type->to_arith();
+    if(tp->is_integer())
+        std::cout << ival;
+    else 
+        std::cout << ldval;
+}
+void print() override {
+    std::string name{};
+    if(m_tok)
+        name = m_tok->to_string();
+    else 
+        name = "[Anonymous]";
+    std::cout << name;
+}
+void print() override {
+    switch(op) {
+        case Inc: std::cout<<"++"; operand->print(); break;
+        case Dec: std::cout<<"--"; operand->print(); break;
+        case Dereference: std::cout<<"*"; operand->print(); break;
+        case AddressOf: std::cout<<"&"; operand->print(); break;
+        case PostInc: operand->print(); std::cout<<"++"; break;
+        case PostDec: operand->print(); std::cout<<"--"; break;
+        case Negate: std::cout<<"-"; operand->print(); break;
+        case ArithmeticOf: std::cout<<"+"; operand->print(); break;
+        case BitNot: std::cout<<"~"; operand->print(); break;
+        case LogicalNot: std::cout<<"!"; operand->print(); break;
+    }
+}
+
+
+void print() override {
+    std::cout << "static_cast<" << m_type.to_string() << ">(";
+    operand->print();
+    std::cout<<')';
+}
+
+void print() override {
+    switch(op) {
+        case Comma:lhs->print(); std::cout << ","; rhs->print(); break;
+        case Add:lhs->print(); std::cout << "+"; rhs->print(); break;
+        case Sub:lhs->print(); std::cout << "-"; rhs->print(); break;
+        case Div:lhs->print(); std::cout << "/"; rhs->print(); break;
+        case Mod:lhs->print(); std::cout << "%"; rhs->print(); break;
+        case BitOr:lhs->print(); std::cout << "|"; rhs->print(); break;
+        case BitXor:lhs->print(); std::cout << "^"; rhs->print(); break;
+        case LeftShift:lhs->print(); std::cout << "<<"; rhs->print(); break;
+        case RightShift:lhs->print(); std::cout << ">>"; rhs->print(); break;
+        case LessThan:lhs->print(); std::cout << "<"; rhs->print(); break;
+        case LessEqual:lhs->print(); std::cout << "<="; rhs->print(); break;
+        case GreaterThan:lhs->print(); std::cout << ">"; rhs->print(); break;
+        case GreaterEqual:lhs->print(); std::cout << ">="; rhs->print(); break;
+        case Equal:lhs->print(); std::cout << "=="; rhs->print(); break;
+        case NotEqual:lhs->print(); std::cout << "!="; rhs->print(); break;
+        case LogicalAnd:lhs->print(); std::cout << "&&"; rhs->print(); break;
+        case LogicalOr:lhs->print(); std::cout << "||"; rhs->print(); break;
+        case Assign:lhs->print(); std::cout << "="; rhs->print(); break;
+        case AddAssign:lhs->print(); std::cout << "+="; rhs->print(); break;
+        case SubAssign:lhs->print(); std::cout << "-="; rhs->print(); break;
+        case MulAssign:lhs->print(); std::cout << "*="; rhs->print(); break;
+        case DivAssign:lhs->print(); std::cout << "/="; rhs->print(); break;
+        case ModAssign:lhs->print(); std::cout << "%="; rhs->print(); break;
+        case BitAndAssign:lhs->print(); std::cout << "&="; rhs->print(); break;
+        case BitOrAssign:lhs->print(); std::cout << "|="; rhs->print(); break;
+        case BitXorAssign:lhs->print(); std::cout << "^="; rhs->print(); break;
+        case LeftShiftAssign:lhs->print(); std::cout << "<<="; rhs->print(); break;
+        case RightShiftAssign:lhs->print(); std::cout << ">>="; rhs->print(); break;
+        case Subscript:lhs->print(); std::cout<<'[';rhs->print(); std::cout<<']'; break;
+    }
+}
+void print() override {val.print();}
+void print() override {
+    cond->print();
+    std::cout<<'?';
+    yes->print();
+    std::cout<<':';
+    no->print();
+}
+void print() override {
+std::cout<< func->m_tok->to_string() << '(';
+for(auto a:args) 
+    a->print();
+std::cout<<")";
+}
+void print() override {std::cout<<".L"<<std::to_string(id);}
+void print() override {
+    for(auto s:m_stmt)
+        s->print();
+}
+void print() override {
+    std::cout << "if(";
+    cond->print();
+    std::cout<<") goto "; if(yes) yes->print(); std::cout<<";\n";
+    std::cout<<"else goto "; if(no) no->print(); std::cout<<";\n";
+}
+void print() override {
+    std::cout<<"goto ";
+    label->print();
+    std::cout<<'\n';
+}
+void print() override {
+    std::cout<<"return ";
+    if(val) val->print();
+    std::cout<<';' << '\n';
+}
+void print() override {
+    expr->print();
+    std::cout<<';' << '\n';
+}
+void print() override {
+    std::cout << obj->m_type.to_string() << ' ';
+    obj->print();
+    if(!inits.empty()) {
+        std::cout << "= {";
+        for(auto &i:inits) i->print();
+        std::cout << '}';
+    }
+}
+void ast_func::print() {if(body){body->print();}}
