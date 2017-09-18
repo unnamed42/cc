@@ -1,2 +1,4 @@
 # cc
-simple c compiler
+simple c compiler, front-end only
+
+Currently refactoring...
