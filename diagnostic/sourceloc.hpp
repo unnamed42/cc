@@ -4,14 +4,18 @@
 #include <cstdio>
 
 namespace Compiler {
+namespace Diagnostic {
 
 struct SourceLoc {
+    /**< return type of ftell() */
+    using PosType = long;
+    
     /**< path to this source content, if nullptr means this is generated from macro */
     const char *path;
     /**< file device */
     FILE *file;
     /**< line beginning position of this source content */
-    long lineBegin;
+    PosType lineBegin;
     /**< line number, starting from 1, for diagnostic only */
     unsigned line;
     /**< column, starting from 1 */
@@ -19,24 +23,20 @@ struct SourceLoc {
     /**< length of this source content, used only in diagnostics */
     unsigned length;
     
+    SourceLoc() = default;
     SourceLoc(const char *path, FILE *file);
-    SourceLoc(const char *path,
-              FILE *file,
-              long lineBegin,
-              unsigned line,
-              unsigned column,
-              unsigned length = 0);
 };
 
 SourceLoc* makeSourceLoc(const char *path,
                          FILE *file,
-                         long lineBegin,
+                         SourceLoc::PosType lineBegin,
                          unsigned line,
                          unsigned column,
                          unsigned length = 0);
 
 SourceLoc* makeSourceLoc(const SourceLoc *source);
 
+} // namespace Diagnostic
 } // namespace Compiler
 
 #endif // SOURCELOC_HPP

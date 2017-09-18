@@ -10,13 +10,13 @@ include_directories(${${PROJECT_NAME}_SOURCE_DIR})
 set(SOURCE_FILES 
         main.cpp
         common.hpp
+        mempool.hpp mempool.cpp
         text/uchar.hpp text/uchar.cpp
         text/ustring.hpp text/ustring.cpp
         text/file.hpp text/file.cpp
         text/stream.hpp text/stream.cpp
-        mempool.hpp mempool.cpp
-        diagnostic.hpp diagnostic.cpp
-        sourceloc.hpp sourceloc.cpp
+        diagnostic/printer.hpp diagnostic/printer.cpp
+        diagnostic/sourceloc.hpp diagnostic/sourceloc.cpp
         lexical/tokentype.hpp lexical/tokentype.cpp
         lexical/token.hpp lexical/token.cpp
         lexical/lexer.hpp lexical/lexer.cpp)

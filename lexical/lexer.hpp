@@ -13,17 +13,23 @@ class UString;
 
 namespace Lexical { 
 
-struct Token;
+class Token;
 
 enum TokenType : uint32_t;
 
 class Lexer {
     NO_COPY_MOVE(Lexer);
     private:
+        using Stream    = Text::Stream;
+        using UChar     = Text::UChar;
+        using UString   = Text::UString;
+        using SourceLoc = Diagnostic::SourceLoc;
+        using PosType   = typename SourceLoc::PosType;
+    private:
         /**< text source. */
-        Text::Stream m_src;
+        Stream  m_src;
         /**< beginning position of current parsing token. */
-        long         m_col;
+        PosType m_pos;
     public:
         /**
          * Initialize m_src with file stream, using a file located at given path.
@@ -31,12 +37,12 @@ class Lexer {
          */
         Lexer(const char *path);
         
-        /**
-         * Initialize m_src with string stream, using the given string.
-         * The given string's lifetime should be at least as long as this lexer.
-         * @param src text string source
-         */
-        Lexer(const Text::UString &src);
+//         /**
+//          * Initialize m_src with string stream, using the given string.
+//          * The given string's lifetime should be at least as long as this lexer.
+//          * @param src text string source
+//          */
+//         Lexer(const UString &src);
         
         /**
          * Extract a token.
@@ -49,25 +55,25 @@ class Lexer {
          * @param ch the first character of this token
          * @return a token object.
          */
-        Token* getNumber(Text::UChar ch);
+        Token* getNumber(UChar ch);
         
         /**
          * Extract a token that is an identifier.
          * @param ch the first character of this token
          * @return a token object.
          */
-        Token* getIdentifier(Text::UChar ch);
+        Token* getIdentifier(UChar ch);
         
         /**
          * Extract a token that is a character.
-         * Before executing this function, a '\'' must have been extracted.
+         * Before executing this function, a ' must have been extracted.
          * @return a token object.
          */
         Token* getChar();
         
         /**
          * Extract a token that is a string.
-         * Before executing this function, a '\"' must have been extracted.
+         * Before executing this function, a " must have been extracted.
          * @return a token object.
          */
         Token* getString();
@@ -77,29 +83,41 @@ class Lexer {
          * @param len length of this codepoint
          * @return the codepoint.
          */
-        Text::UChar getUCN(unsigned len);
+        UChar getUCN(unsigned len);
         
         /**
          * Get a character escape sequence.
-         * Before executing this function, a '\\' must have been extracted.
+         * Before executing this function, a \ must have been extracted.
          * @return real value of corresponding escape sequence.
          */
-        Text::UChar getEscapedChar();
+        UChar getEscapedChar();
         
         /**
-         * Get an escaped character encoded as hexadecimal or octal
+         * Get an escaped character encoded as hexadecimal
+         * @return real value of that escaped character.
+         */
+        UChar getHexChar();
+        
+        /**
+         * Get an escaped character encoded as octal
          * @param ch the first character of that sequence
          * @return real value of that escaped character.
          */
-        Text::UChar getHexChar();
-        Text::UChar getOctChar(Text::UChar ch);
+        UChar getOctChar(UChar ch);
         
         /**
          * Extract a digraph.
          * @param ch the first character of this digraph
          * @return a token object.
          */
-        Token* getDigraph(Text::UChar ch);
+        Token* getDigraph(UChar ch);
+        
+        /**
+         * Construct a token with given token type attribute.
+         * @param type a unsigned 32-bit integer from enumerator `TokenType`
+         * @return a constructed token object
+         */
+        Token* makeToken(TokenType type);
         
         /**
          * Construct a token with given token type attribute.
@@ -107,8 +125,7 @@ class Lexer {
          * @param content content of this token
          * @return a constructed token object
          */
-        Token* makeToken(TokenType type);
-        Token* makeToken(TokenType type, const Text::UString &content);
+        Token* makeToken(TokenType type, const UString &content);
         
         /**
          * Record new token's beginning position
@@ -117,8 +134,8 @@ class Lexer {
         
         const SourceLoc* sourceLoc() const noexcept;
 };
-} // namespace Lexical
 
+} // namespace Lexical
 } // namespace Compiler
 
 #endif // LEXER_HPP

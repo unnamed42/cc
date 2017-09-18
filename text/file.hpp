@@ -4,15 +4,17 @@
 #include "common.hpp"
 
 #include <cstdio>
-#include <cstdint>
 
 namespace Compiler {
 namespace Text {
 
 class UChar;
+class UString;
 
 class File {
     NO_COPY_MOVE(File);
+    private:
+        using self = File;
     private:
         FILE *m_file;
     public:
@@ -25,7 +27,13 @@ class File {
          * Read one byte
          * @return read data from file
          */
-        uint8_t read();
+        char read();
+        
+        /**
+         * Peek one byte
+         * @return peek data from file
+         */
+        char peekASCII();
         
         /**
          * Get one UTF8 character
@@ -40,37 +48,93 @@ class File {
         UChar peek();
         
         /**
-         * Unget characters
-         * @return bytes moved backwards
+         * Unget one byte
          */
-        int unget();
+        void ungetASCII();
+        
+        /**
+         * Unget bytes until the specified byte found. 
+         * After unget, the next read byte is next to the found one.
+         * @param byte the specified byte
+         * @return bytes returned back
+         */
+        int ungetUntilASCII(char byte);
+        
+        /**
+         * Unget one character
+         * @return character ungotten
+         */
+        UChar unget();
+        
+        /**
+         * Unget characters 
+         * @param ch the specified character
+         * @return bytes returned back, identical to ch.bytes()
+         */
         int unget(UChar ch);
+        
+        /**
+         * Unget characters until the specified character found. 
+         * After unget, the next read character is next to the found one.
+         * @param ch the specified character
+         * @return bytes returned back
+         */
+        int ungetUntil(UChar ch);
+        
+        /**
+         * Ignore one byte
+         */
+        void ignoreASCII();
+        
+        /**
+         * Ignore bytes until the specified byte found
+         * @param byte the specified byte, also get ignored
+         * @return bytes ignored
+         */
+        int ignoreUntilASCII(char byte);
         
         /**
          * Ignore current character
          */
-        void  ignore();
+        void ignore();
         
         /**
-         * Ignore until given character met
-         * @param ch end character, also taken
-         * @return number of bytes taken
+         * Ignore as many bytes as ch have
+         * @param ch hint character
          */
-        int ignore(UChar ch);
+        void ignore(UChar ch);
+        
+        /**
+         * Ignore characters until the specified character found
+         * @param ch the specified character, also get ignored
+         * @return bytes ignored
+         */
+        int ignoreUntil(UChar ch);
         
         void open(const char *path);
         void flush();
         void close();
         
         long tell();
-        void seek(long offset, int origin);
+        
+        /**
+         * Move reading cursor to the specified location
+         * @param offset offset to move
+         * @param origin SEEK_SET/SEEK_CUR/SEEK_END
+         * @return true if success
+         */
+        bool seek(long offset, int origin = SEEK_CUR);
         
         bool eof();
         bool error();
+        bool good();
         
         FILE* getFILE();
         
         explicit operator bool();
+        
+        self& operator>>(UChar &result);
+        self& operator>>(UString &result);
 };
 
 } // namespace Text

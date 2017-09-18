@@ -2,23 +2,28 @@
 #define STREAM_HPP
 
 #include "text/file.hpp"
-#include "text/uchar.hpp"
-#include "sourceloc.hpp"
+#include "diagnostic/sourceloc.hpp"
 
 namespace Compiler {
 namespace Text {
 
+class UChar;
 class UString;
 
 class Stream {
     NO_COPY_MOVE(Stream);
     private:
+        using SourceLoc = Diagnostic::SourceLoc;
+        using self      = Stream;
+    public:
+        using PosType   = typename SourceLoc::PosType;
+    private:
         /**< underlying text file */
         File      m_file;
         /**< source information of this stream */
         SourceLoc m_loc;
-        /**< last peeked character. If not read yet, its value should be `invalid`. */
-        UChar     m_peek;
+//         /**< last peeked character. If not read yet, its value should be `invalid`. */
+//         UChar     m_peek;
     private:
         /**
          * Used for changing state after meeting a line break.
@@ -37,10 +42,11 @@ class Stream {
         UChar peek();
         
         /**
-         * check if next character is the given one
+         * check if next character matches the given one
+         * @param ch the given character
          * @return true if matched
          */
-        bool expect(UChar) noexcept;
+        bool want(UChar ch) noexcept;
         
         void unget() noexcept; 
         
@@ -51,21 +57,6 @@ class Stream {
         void ignore(UChar ch) noexcept;
         
         UString getline();
-        
-        const char* position() const noexcept;
-        
-        const SourceLoc& sourceLoc() const noexcept;
-        
-        /**
-         * @return path to being processed file
-         */
-        const char *path() const noexcept;
-        
-        unsigned line() const noexcept;
-        
-        unsigned column() const noexcept;
-        
-        const char* lineBegin() const noexcept;
         
         void skipLine() noexcept;
         
@@ -82,11 +73,27 @@ class Stream {
          *         0b11 when both spaces and line breaks skipped
          */
         int skipSpace() noexcept;
-    private:
-        UChar fileGet();
         
-        void fileUnget(UChar ch);
+        const SourceLoc& sourceLoc() const noexcept;
         
+        /**
+         * @return Current reading position
+         */
+        PosType pos();
+        
+        /**
+         * @return path to being processed file
+         */
+        const char *path() const noexcept;
+        
+        unsigned line() const noexcept;
+        
+        unsigned column() const noexcept;
+        
+        PosType lineBegin() const noexcept;
+        
+        explicit operator bool();
+        self& operator>>(UChar &result);
 };
 
 } // namespace Text

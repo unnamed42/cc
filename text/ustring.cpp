@@ -1,15 +1,13 @@
 #include "text/uchar.hpp"
 #include "text/ustring.hpp"
 
-#include <memory>
+#include <new>
+#include <cstdlib>
+#include <cassert>
 #include <cstring>
 #include <iterator>
 
 using namespace Compiler::Text;
-
-using std::allocator;
-
-static allocator<UChar> alloc{};
 
 template <class T>
 static inline void swap(T &a, T &b) {
@@ -17,40 +15,28 @@ static inline void swap(T &a, T &b) {
     temp = a; a = b; b = temp;
 }
 
-class UString::Iterator {
-    private:
-        using traits_type = std::iterator_traits<UChar*>;
-        using self        = UString::Iterator;
-    public:
-        using difference_type = traits_type::difference_type;
-        using value_type      = traits_type::value_type;
-        using pointer         = traits_type::pointer;
-        using reference       = traits_type::reference;
-    private:
-        pointer m_cursor;
-    public:
-        explicit Iterator(pointer p) : m_cursor(p) {}
-        Iterator(const self &other) : m_cursor(other.m_cursor) {}
-        
-        Iterator& operator++()    noexcept { ++m_cursor; return *this; }
-        Iterator  operator++(int) noexcept { auto it = *this; ++m_cursor; return it; }
-        Iterator& operator--()    noexcept { --m_cursor; return *this; }
-        Iterator  operator--(int) noexcept { auto it = *this; --m_cursor; return it; }
-        pointer   operator->()    noexcept { return m_cursor; }
-        reference operator*()     noexcept { return *m_cursor; }
-        
-        Iterator& operator+=(difference_type diff) noexcept { m_cursor += diff; return *this; }
-        Iterator  operator+(difference_type diff)  noexcept { return Iterator{m_cursor} += diff; }
-        Iterator& operator-=(difference_type diff) noexcept { return *this += -diff; }
-        Iterator  operator-(difference_type diff)  noexcept { return Iterator{m_cursor} -= diff; }
-        
-        bool operator==(const self &other) const noexcept { return m_cursor == other.m_cursor; }
-        bool operator!=(const self &other) const noexcept { return !operator==(other); }
-        bool operator<(const self &other)  const noexcept { return m_cursor < other.m_cursor; }
-        bool operator>(const self &other)  const noexcept { return m_cursor > other.m_cursor; }
-        bool operator<=(const self &other) const noexcept { return !operator>(other); }
-        bool operator>=(const self &other) const noexcept { return !operator<(other); }
+template <class T>
+struct allocator {
+    T* allocate(size_t size) {
+        auto ret = static_cast<T*>(malloc(size * sizeof(T)));
+        if(!ret)
+            throw std::bad_alloc{};
+        return ret;
+    }
+    
+    void deallocate(T *mem, size_t size) {
+        free(mem);
+    }
+    
+    T* reallocate(T *mem, size_t newsize) {
+        auto ret = static_cast<T*>(realloc(mem, newsize));
+        if(!ret)
+            throw std::bad_alloc{};
+        return ret;
+    }
 };
+
+static allocator<UChar> alloc{};
 
 UString::UString() : m_str(alloc.allocate(16)), m_len(0), m_capacity(16) {}
 
@@ -69,6 +55,17 @@ UString::UString(self &&other) noexcept
     other.m_str = nullptr;
 }
 
+UString::UString(unsigned reserve) : UString() {
+    this->reserve(reserve);
+}
+
+UString::UString(UChar c, unsigned count) : UString(count) {
+    assert(count != 0);
+    m_len = count;
+    while(--count) 
+        m_str[count] = c;
+}
+
 UString::~UString() noexcept {
     if(m_str)
         alloc.deallocate(m_str, m_capacity);
@@ -81,16 +78,17 @@ void UString::swap(UString &other) noexcept {
 }
 
 void UString::resize(unsigned size) {
-    auto mem = alloc.allocate(size);
-    memcpy(mem, m_str, m_capacity * sizeof(*mem));
-    alloc.deallocate(m_str, m_capacity);
     m_capacity = size;
-    m_str = mem;
+    m_str = alloc.reallocate(m_str, size);
 }
 
 void UString::reserve(unsigned size) {
     if(m_capacity < size) 
         resize(size);
+}
+
+void UString::clear() noexcept {
+    m_len = 0;
 }
 
 bool UString::empty() const noexcept {
@@ -138,16 +136,32 @@ UString::Iterator UString::end() noexcept {
     return Iterator{m_str + m_len};
 }
 
+UString::ConstIterator UString::begin() const noexcept {
+    return ConstIterator{m_str};
+}
+
+UString::ConstIterator UString::end() const noexcept {
+    return ConstIterator{m_str + m_len};
+}
+
+UChar& UString::at(unsigned index) noexcept {
+    return m_str[index];
+}
+
+UChar UString::at(unsigned index) const noexcept {
+    return m_str[index];
+}
+
 UChar& UString::operator[](unsigned index) noexcept {
-    return m_str[index];
+    return at(index);
 }
 
-UChar  UString::operator[](unsigned index) const noexcept {
-    return m_str[index];
+UChar UString::operator[](unsigned index) const noexcept {
+    return at(index);
 }
 
-UString& UString::append(char ch) {
-    pushBack(UChar(ch));
+UString& UString::append(UChar ch) {
+    pushBack(ch);
     return *this;
 }
 
@@ -158,7 +172,11 @@ UString& UString::append(const self &other) {
 }
 
 UString& UString::append(const char *str) {
-    
+    while(*str) {
+        UChar ch{str};
+        str += ch.bytes();
+        pushBack(ch);
+    }
     return *this;
 }
 
@@ -170,15 +188,43 @@ UString& UString::operator+=(const self &other) {
     return append(other);
 }
 
+UString& UString::operator+=(const char *str) {
+    return append(str);
+}
+
 UString UString::operator+(UChar ch) const {
-    return UString{*this} += ch;    
+    return UString{*this} += ch;
 }
 
 UString UString::operator+(const self &other) const {
     return UString{*this} += other;
 }
 
+UString UString::operator+(const char *str) const {
+    return UString{*this} += str;
+}
+
 UString& UString::operator=(self other) {
     swap(other);
     return *this;
+}
+
+bool UString::operator==(const UString &other) const noexcept {
+    if(m_len != other.m_len)
+        return false;
+    for(auto i=0U; i<m_len; ++i) {
+        if(at(i) != other.at(i))
+            return false;
+    }
+    return true;
+}
+
+bool UString::operator!=(const UString &other) const noexcept {
+    if(m_len != other.m_len)
+        return true;
+    for(auto i=0U; i<m_len; ++i) {
+        if(at(i) == other.at(i))
+            return true;
+    }
+    return false;
 }

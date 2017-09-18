@@ -1,29 +1,30 @@
 #include "mempool.hpp"
-#include "sourceloc.hpp"
+#include "diagnostic/sourceloc.hpp"
 
 #include <cstring>
 
-namespace impl = Compiler;
+namespace impl = Compiler::Diagnostic;
 
-using namespace Compiler;
+using namespace Compiler::Diagnostic;
 
 SourceLoc::SourceLoc(const char *path, FILE *file) 
     : path(path), file(file),
       lineBegin(0), line(1), column(1), length(0)  {}
 
-SourceLoc::SourceLoc(const char *path, FILE *file,
-                     long lineBegin, unsigned line, unsigned column, unsigned length) 
-    : path(path), file(file), 
-      lineBegin(lineBegin), line(line), column(column), length(length) {}
-
 SourceLoc* impl::makeSourceLoc(const char *path,
                                FILE *file,
-                               long lineBegin,
+                               SourceLoc::PosType lineBegin,
                                unsigned line,
                                unsigned column,
                                unsigned length) {
     auto *p = pool.allocate<SourceLoc>();
-    return new (p) SourceLoc{path, file, lineBegin, line, column, length};
+    p->path = path;
+    p->file = file;
+    p->lineBegin = lineBegin;
+    p->line = line;
+    p->column = column;
+    p->length = length;
+    return p;
 }
 
 SourceLoc* impl::makeSourceLoc(const SourceLoc *source) {

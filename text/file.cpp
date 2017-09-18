@@ -1,5 +1,8 @@
 #include "text/file.hpp"
 #include "text/uchar.hpp"
+#include "text/ustring.hpp"
+
+#include <cassert>
 
 using namespace Compiler::Text;
 
@@ -13,10 +16,18 @@ File::~File() {
     fclose(m_file);
 }
 
-uint8_t File::read() {
-    uint8_t buffer;
-    fread(&buffer, sizeof(char), 1, m_file);
-    return buffer;
+char File::read() {
+    char buffer;
+    if(fread(&buffer, sizeof(buffer), 1, m_file) == 1)
+        return buffer;
+    return 0;
+}
+
+char File::peekASCII() {
+    auto byte = read();
+    if(byte)
+        ungetASCII();
+    return byte;
 }
 
 UChar File::get() {
@@ -29,14 +40,71 @@ UChar File::peek() {
     return ret;
 }
 
-int File::unget() {
-    seek(-1, SEEK_CUR);
-    return 1;
+void File::ungetASCII() {
+    seek(-1);
+}
+
+int File::ungetUntilASCII(char byte) {
+    int bytes = 0;
+    while(seek(-1)) {
+        ++bytes;
+        if(peekASCII() == byte) {
+            ignoreASCII();
+            break;
+        }
+    }
+    return bytes;
+}
+
+UChar File::unget() {
+    UChar::ValueType value = 0;
+    int shift = 0;
+    #define SHIFT(val, ch, shift) val |= (static_cast<int>(ch) << shift); shift += 8
+    if(!seek(-1))
+        return 0;
+    char ch_ = peekASCII();
+    auto utf8Bytes = validUTF8Head(ch_);
+    assert(utf8Bytes != 0);
+    SHIFT(value, ch_ , shift);
+    while(--utf8Bytes) {
+        auto success = seek(-1);
+        assert(success);
+        ch_ = peekASCII();
+        assert(validUTF8Byte(ch_));
+        SHIFT(value, ch_ , shift);
+    }
+    #undef SHIFT
+    return {value};
 }
 
 int File::unget(UChar ch) {
     auto bytes = ch.bytes();
-    seek(-bytes, SEEK_CUR);
+    seek(-bytes);
+    return bytes;
+}
+
+int File::ungetUntil(UChar ch) {
+    if(ch.isASCII())
+        ungetUntilASCII(ch & 0xff);
+    auto value = UChar::makeInvalid();
+    int bytes = 0; // return value
+    while(good() && value != ch) {
+        value = unget();
+        bytes += value.bytes();
+    }
+    if(bytes)
+        seek(value.bytes());
+    return bytes;
+}
+
+void File::ignoreASCII() {
+    seek(1);
+}
+
+int File::ignoreUntilASCII(char byte) {
+    int bytes = 0;
+    while(read() != byte)
+        ++bytes;
     return bytes;
 }
 
@@ -44,9 +112,13 @@ void File::ignore() {
     get();
 }
 
-int File::ignore(UChar ch) {
+void File::ignore(UChar ch) {
+    seek(ch.bytes());
+}
+
+int File::ignoreUntil(UChar ch) {
     int ret = 0;
-    while(*this) {
+    while(good()) {
         auto ch_ = get();
         if(ch_ != ch) {
             unget(ch_);
@@ -73,8 +145,8 @@ long File::tell() {
     return ftell(m_file);
 }
 
-void File::seek(long offset, int origin) {
-    fseek(m_file, offset, origin);
+bool File::seek(long offset, int origin) {
+    return !fseek(m_file, offset, origin);
 }
 
 bool File::eof() {
@@ -85,6 +157,28 @@ bool File::error() {
     return ferror(m_file);
 }
 
-File::operator bool() {
+bool File::good() {
     return !(eof() || error());
+}
+
+FILE* File::getFILE() {
+    return m_file;
+}
+
+
+File::operator bool() {
+    return !error();
+}
+
+File& File::operator>>(UChar &ch) {
+    new (&ch) UChar{this};
+    return *this;
+}
+
+File& File::operator>>(UString &str) {
+    str.clear();
+    UChar temp;
+    while(operator>>(temp))
+        str += temp;
+    return *this;
 }

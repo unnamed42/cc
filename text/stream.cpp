@@ -1,14 +1,15 @@
+#include "text/uchar.hpp"
 #include "text/stream.hpp"
 #include "text/ustring.hpp"
-#include "diagnostic.hpp"
 
 using namespace Compiler;
 using namespace Compiler::Text;
+using namespace Compiler::Diagnostic;
 
-static const UChar invalid = 0xffffffff;
+using PosType = Stream::PosType;
 
 Stream::Stream(const char *path)
-    : m_file(path), m_loc(path, m_file.getFILE()), m_peek(invalid) {}
+    : m_file(path), m_loc(path, m_file.getFILE()) {}
 
 void Stream::newline() noexcept {
     ++m_loc.line;
@@ -16,63 +17,28 @@ void Stream::newline() noexcept {
     m_loc.lineBegin = m_file.tell();
 }
 
-UChar Stream::fileGet() {
-    auto ch = m_file.get();
-    ++m_loc.column;
-    if(ch == '\n') {
-        ++m_loc.line;
-        m_loc.lineBegin = m_file.tell();
-        m_loc.column = 1;
-    }
-    return ch;
-}
-
-void Stream::fileUnget(UChar ch) {
-    while(ch == '\n') {
-        
-    }
-    while(m_curr >= m_src && *m_curr == '\n') {
-        auto p = m_curr;
-        while(p >= m_src && *p != '\n')
-            --p;
-        m_loc.column = m_curr - p;
-        m_loc.lineBegin = p;
-        --m_loc.line;
-    }
-    // UTF8
-    while((*m_curr & 0xc0) == 0x80) {
-        --m_curr;
-        --m_loc.column;
-    } 
-    --m_curr;
-    --m_loc.column;
-}
-
 UChar Stream::get() noexcept {
-    auto ch = peek();
-    m_peek = invalid;
-    if(ch == '\n')
+    UChar ch = peek();
+    m_file.ignore(ch);
+    ++m_loc.column;
+    if(ch.isNewline()) 
         newline();
     return ch;
 }
 
 UChar Stream::peek() {
-    if(m_peek != invalid)
-        return m_peek;
     if(!m_file)
-        return 0;
+        return UChar::makeInvalid();
     
-    UChar ch = m_file.get();
+    auto ch = m_file.get();
     auto chp = m_file.peek();
     
     if(ch == '\\' && chp == '\n') {
-        m_file.ignore();
-        m_peek = invalid;
+        m_file.ignoreASCII();
         newline();
         return peek();
     } else if(ch == '?' && chp == '?') {
-        m_file.ignore(); // the second '?'
-        ch = m_file.get();
+        m_file.ignoreASCII(); // the second '?'
         /* 5.2.1.1 Trigraph sequences
          *
          * Before any other processing takes place, each occurrence of one of the following
@@ -84,7 +50,7 @@ UChar Stream::peek() {
          * No other trigraph sequences exist. Each ? that does not begin one of the trigraphs listed
          * above is not changed.
          */
-        switch(m_file.get()) {
+        switch(chp = m_file.get()) {
             case '(': ch = '['; break;
             case ')': ch = ']'; break;
             case '/': ch = '\\'; break;
@@ -95,15 +61,16 @@ UChar Stream::peek() {
             case '-': ch = '~'; break;
             case '=': ch = '#'; break;
             default:
-                m_file.unget(); // current character and the second '?'
+                m_file.unget(chp); // current character 
+                m_file.ungetASCII(); // the second '?'
         }
-        return m_peek = ch;
     }
     
-    return m_peek = ch;
+    m_file.ungetUntilASCII(ch);
+    return ch;
 }
 
-bool Stream::expect(UChar ch) noexcept {
+bool Stream::want(UChar ch) noexcept {
     if(peek() == ch) {
         get();
         return true;
@@ -112,46 +79,47 @@ bool Stream::expect(UChar ch) noexcept {
 }
 
 void Stream::unget() noexcept {
-    bufUnget();
-    m_peek = invalid;
+    auto ch = m_file.unget();
+    --m_loc.column;
+    if(ch.isNewline()) {
+        auto here = m_file.tell();
+        m_file.ungetUntilASCII('\n');
+        m_loc.lineBegin = m_file.tell();
+        --m_loc.line;
+        m_loc.column = 1;
+        m_file.seek(here, SEEK_SET);
+    }
 }
 
 void Stream::ignore(UChar ch) noexcept {
-    bufIgnore(ch);
+    UChar c;
+    while(m_file >> c) {
+        if(c.isNewline())
+            newline();
+        else 
+            ++m_loc.column;
+        if(c == ch) 
+            break;
+    }
 }
 
 UString Stream::getline() {
     UString result{};
-    char ch;
-    while(ch = bufGet()) {
-        if(ch == '\n')
-            break;
-        result += ch;
-    }
+    UChar c;
+    while(!(c = get()).invalid())
+        result += c;
     return result;
 }
 
-const char* Stream::position() const noexcept {
-    return m_curr;
-}
-
-const SourceLoc& Stream::sourceLoc() const noexcept {
-    return m_loc;
-}
-
-const char* Stream::path() const noexcept {
-    return m_loc.path;
-}
-
 void Stream::skipLine() noexcept {
-    bufIgnore('\n');
+    ignore('\n');
 }
 
 void Stream::skipBlockComment() noexcept {
-    while(bufGood()) {
-        bufIgnore('*');
-        if(expect('/'))
-            break;
+    while(m_file) {
+        ignore('*');
+        if(want('/')) 
+            return;
     }
 }
 
@@ -159,9 +127,9 @@ int Stream::skipSpace() noexcept {
     int ret = 0;
     for(UChar ch;;) {
         switch(ch = get()) {
-            case '/': if(expect('*')) {
+            case '/': if(want('*')) {
                           skipBlockComment(); ret |= 1;
-                      } else if(expect('/')) {
+                      } else if(want('/')) {
                           skipLine(); ret |= 2;
                       } else {
             default:      unget();
@@ -178,6 +146,18 @@ int Stream::skipSpace() noexcept {
     }
 }
 
+PosType Stream::pos() {
+    return m_file.tell();
+}
+
+const SourceLoc& Stream::sourceLoc() const noexcept {
+    return m_loc;
+}
+
+const char* Stream::path() const noexcept {
+    return m_loc.path;
+}
+
 unsigned Stream::line() const noexcept {
     return m_loc.line;
 }
@@ -186,7 +166,15 @@ unsigned Stream::column() const noexcept {
     return m_loc.column;
 }
 
-const char* Stream::lineBegin() const noexcept {
+PosType Stream::lineBegin() const noexcept {
     return m_loc.lineBegin;
 }
 
+Stream::operator bool() {
+    return static_cast<bool>(m_file);
+}
+
+Stream& Stream::operator>>(UChar &result) {
+    result = get();
+    return *this;
+}
