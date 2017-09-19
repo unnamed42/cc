@@ -139,6 +139,8 @@ class UString {
         void resize(unsigned size);
 };
 
+UString* clone(UString&&);
+
 } // namespace Text
 } // namespace Compiler
 

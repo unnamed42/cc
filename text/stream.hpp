@@ -61,7 +61,7 @@ class Stream {
         void skipLine() noexcept;
         
         /**
-         * Before execute this function, a '/' and a '*' must have been extracted already.
+         * Before execute this function, a /* must have been extracted already.
          */
         void skipBlockComment() noexcept;
         
@@ -77,13 +77,10 @@ class Stream {
         const SourceLoc& sourceLoc() const noexcept;
         
         /**
-         * @return Current reading position
+         * @return current reading position
          */
         PosType pos();
         
-        /**
-         * @return path to being processed file
-         */
         const char *path() const noexcept;
         
         unsigned line() const noexcept;

@@ -1,3 +1,4 @@
+#include "mempool.hpp"
 #include "text/uchar.hpp"
 #include "text/ustring.hpp"
 
@@ -7,6 +8,9 @@
 #include <cstring>
 #include <iterator>
 
+namespace impl = Compiler::Text;
+
+using namespace Compiler;
 using namespace Compiler::Text;
 
 template <class T>
@@ -37,6 +41,10 @@ struct allocator {
 };
 
 static allocator<UChar> alloc{};
+
+UString* impl::clone(UString &&str) {
+    return new (pool.allocate(sizeof(UString))) UString{std::move(str)};
+}
 
 UString::UString() : m_str(alloc.allocate(16)), m_len(0), m_capacity(16) {}
 

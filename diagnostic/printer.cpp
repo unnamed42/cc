@@ -6,7 +6,7 @@
 using namespace Compiler::Text;
 using namespace Compiler::Diagnostic;
 
-Printer::Printer() noexcept : m_mode(DIAGNOSTIC_WARNING) {}
+Printer::Printer(DiagnoseFlag flag) noexcept : m_mode(flag) {}
 
 Printer::~Printer() noexcept(false) {
     if(m_mode == DIAGNOSTIC_ERROR)

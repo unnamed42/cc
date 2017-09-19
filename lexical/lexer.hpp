@@ -125,7 +125,7 @@ class Lexer {
          * @param content content of this token
          * @return a constructed token object
          */
-        Token* makeToken(TokenType type, const UString &content);
+        Token* makeToken(TokenType type, UString &content);
         
         /**
          * Record new token's beginning position

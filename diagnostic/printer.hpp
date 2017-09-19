@@ -28,7 +28,7 @@ class Printer {
     private:
         DiagnoseFlag m_mode;
     public:
-        Printer() noexcept;
+        explicit Printer(DiagnoseFlag flag = DIAGNOSTIC_WARNING) noexcept;
         ~Printer() noexcept(false);
         
         self& operator<<(const char *);

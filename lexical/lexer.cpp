@@ -7,6 +7,8 @@
 #include "diagnostic/sourceloc.hpp"
 #include "diagnostic/printer.hpp"
 
+#include <cassert>
+
 using namespace Compiler::Text;
 using namespace Compiler::Lexical;
 using namespace Compiler::Diagnostic;
@@ -32,11 +34,11 @@ Token* Lexer::makeToken(TokenType type) {
     return ::makeToken(loc, type);
 }
 
-Token* Lexer::makeToken(TokenType type, const UString &content) {
+Token* Lexer::makeToken(TokenType type, UString &content) {
     auto loc = makeSourceLoc(&m_src.sourceLoc());
     loc->length = m_src.pos() - m_pos;
     loc->column -= loc->length;
-    return ::makeToken(loc, type);
+    return ::makeToken(loc, type, std::move(content));
 }
 
 void Lexer::logPos() {
@@ -136,7 +138,7 @@ Token* Lexer::get() {
                 m_src.unget();
             }
             return makeToken(Dot);
-        default: Printer() << DIAGNOSTIC_ERROR << sourceLoc() << ch;
+        default: Printer(DIAGNOSTIC_ERROR) << sourceLoc() << ch;
     }
 }
 
@@ -243,8 +245,7 @@ UChar Lexer::getEscapedChar() {
         case '0': case '1': case '2': case '3':
         case '4': case '5': case '6': case '7':
             return getOctChar(ch);
-        default: Printer() << DIAGNOSTIC_ERROR << sourceLoc() 
-                           << "Unknown escape sequence " << ch;
+        default: Printer(DIAGNOSTIC_ERROR) << sourceLoc() << "Unknown escape sequence " << ch;
     }
 }
 
@@ -252,8 +253,8 @@ UChar Lexer::getUCN(unsigned len) {
     UChar::ValueType ret = 0;
     for(auto count = 0; count <= len; ++count) {
         if(!m_src.peek().isHex())
-            Printer() << DIAGNOSTIC_ERROR << sourceLoc()
-                      << "Expecting hexadecimal, but base " << m_src.get();
+            Printer(DIAGNOSTIC_ERROR) << sourceLoc() 
+                                      << "Expecting hexadecimal, but base " << m_src.get();
         ret <<= 4;
         ret |= m_src.get().toHex();
     }
@@ -263,8 +264,8 @@ UChar Lexer::getUCN(unsigned len) {
 UChar Lexer::getHexChar() {
     UChar::ValueType ret = 0;
     if(!m_src.peek().isHex())
-        Printer() << DIAGNOSTIC_ERROR << sourceLoc()
-                  << "Expecting hexadecimal, but base " << m_src.get();
+        Printer(DIAGNOSTIC_ERROR) << sourceLoc()
+                                  << "Expecting hexadecimal, but base " << m_src.get();
     for(int size = 0; size <= 32; size += 4) {
         if(!m_src.peek().isHex())
             break;
@@ -276,6 +277,7 @@ UChar Lexer::getHexChar() {
 
 // the first is impossible to be non-octonary
 UChar Lexer::getOctChar(UChar ch) {
+    assert(ch.isOct());
     UChar::ValueType c = ch;
     for(auto count = 1; count <= 3; ++count) {
         if(m_src.peek().isOct()) 
