@@ -4,6 +4,7 @@
 #include "common.hpp"
 
 namespace Compiler {
+namespace Utils {
 
 /**
  * Allocate some bytes of memory.
@@ -86,6 +87,7 @@ class MemPool {
 
 extern MemPool pool;
 
+} // namespace Utils
 } // namespace Compiler
 
 #endif // MEMPOOL_HPP

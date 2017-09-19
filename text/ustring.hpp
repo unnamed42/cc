@@ -1,6 +1,8 @@
 #ifndef USTRING_HPP
 #define USTRING_HPP
 
+#include "utils/iterator.hpp"
+
 namespace Compiler {
 namespace Text { 
 
@@ -8,78 +10,16 @@ class UChar;
 
 class UString {
     public:
-        class Iterator {
-            private:
-                using self = Iterator;
-            public:
-                using difference_type = std::ptrdiff_t;
-                using value_type      = UChar;
-                using pointer         = UChar*;
-                using reference       = UChar&;
-            private:
-                pointer m_cursor;
-            public:
-                explicit Iterator(pointer p) : m_cursor(p) {}
-                Iterator(const self &other) : m_cursor(other.m_cursor) {}
-                
-                self& operator++()     noexcept { ++m_cursor; return *this; }
-                self  operator++(int)  noexcept { auto it = *this; ++m_cursor; return it; }
-                self& operator--()     noexcept { --m_cursor; return *this; }
-                self  operator--(int)  noexcept { auto it = *this; --m_cursor; return it; }
-                pointer   operator->() noexcept { return m_cursor; }
-                reference operator*()  noexcept { return *m_cursor; }
-                
-                self& operator+=(difference_type diff) noexcept { m_cursor += diff; return *this; }
-                self  operator+(difference_type diff)  noexcept { return self{m_cursor} += diff; }
-                self& operator-=(difference_type diff) noexcept { return *this += -diff; }
-                self  operator-(difference_type diff)  noexcept { return self{m_cursor} -= diff; }
-                
-                bool operator==(const self &other) const noexcept { return m_cursor == other.m_cursor; }
-                bool operator!=(const self &other) const noexcept { return !operator==(other); }
-                bool operator<(const self &other)  const noexcept { return m_cursor < other.m_cursor; }
-                bool operator>(const self &other)  const noexcept { return m_cursor > other.m_cursor; }
-                bool operator<=(const self &other) const noexcept { return !operator>(other); }
-                bool operator>=(const self &other) const noexcept { return !operator<(other); }
-        };
-        class ConstIterator {
-            private:
-                using self = ConstIterator;
-            public:
-                using difference_type = std::ptrdiff_t;
-                using value_type      = UChar;
-                using pointer         = const UChar*;
-                using reference       = const UChar&;
-            private:
-                pointer m_cursor;
-            public:
-                explicit ConstIterator(pointer p) : m_cursor(p) {}
-                ConstIterator(const self &other) : m_cursor(other.m_cursor) {}
-                
-                self& operator++()     noexcept { ++m_cursor; return *this; }
-                self  operator++(int)  noexcept { auto it = *this; ++m_cursor; return it; }
-                self& operator--()     noexcept { --m_cursor; return *this; }
-                self  operator--(int)  noexcept { auto it = *this; --m_cursor; return it; }
-                pointer   operator->() noexcept { return m_cursor; }
-                reference operator*()  noexcept { return *m_cursor; }
-                
-                self& operator+=(difference_type diff) noexcept { m_cursor += diff; return *this; }
-                self  operator+(difference_type diff)  noexcept { return self{m_cursor} += diff; }
-                self& operator-=(difference_type diff) noexcept { return *this += -diff; }
-                self  operator-(difference_type diff)  noexcept { return self{m_cursor} -= diff; }
-                
-                bool operator==(const self &other) const noexcept { return m_cursor == other.m_cursor; }
-                bool operator!=(const self &other) const noexcept { return !operator==(other); }
-                bool operator<(const self &other)  const noexcept { return m_cursor < other.m_cursor; }
-                bool operator>(const self &other)  const noexcept { return m_cursor > other.m_cursor; }
-                bool operator<=(const self &other) const noexcept { return !operator>(other); }
-                bool operator>=(const self &other) const noexcept { return !operator<(other); }
-        };
+        using Iterator = Utils::Iterator<UChar*>;
+        using ConstIterator = Utils::ConstIterator<Iterator>;
     private:
         using self = UString;
     private:
         UChar   *m_str;
         unsigned m_len;
         unsigned m_capacity;
+    public:
+        static UString fromUnsigned(unsigned i);
     public:
         UString();
         UString(const char*);

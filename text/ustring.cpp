@@ -1,4 +1,4 @@
-#include "mempool.hpp"
+#include "utils/mempool.hpp"
 #include "text/uchar.hpp"
 #include "text/ustring.hpp"
 
@@ -12,6 +12,7 @@ namespace impl = Compiler::Text;
 
 using namespace Compiler;
 using namespace Compiler::Text;
+using namespace Compiler::Utils;
 
 template <class T>
 static inline void swap(T &a, T &b) {
@@ -44,6 +45,17 @@ static allocator<UChar> alloc{};
 
 UString* impl::clone(UString &&str) {
     return new (pool.allocate(sizeof(UString))) UString{std::move(str)};
+}
+
+UString UString::fromUnsigned(unsigned i) {
+    if(!i)
+        return "0";
+    UString ret{};
+    while(i) {
+        ret += static_cast<UChar>(i % 10 + '0');
+        i /= 10;
+    }
+    return ret;
 }
 
 UString::UString() : m_str(alloc.allocate(16)), m_len(0), m_capacity(16) {}
@@ -145,11 +157,11 @@ UString::Iterator UString::end() noexcept {
 }
 
 UString::ConstIterator UString::begin() const noexcept {
-    return ConstIterator{m_str};
+    return ConstIterator{Iterator{m_str}};
 }
 
 UString::ConstIterator UString::end() const noexcept {
-    return ConstIterator{m_str + m_len};
+    return ConstIterator{Iterator{m_str + m_len}};
 }
 
 UChar& UString::at(unsigned index) noexcept {

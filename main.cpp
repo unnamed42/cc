@@ -1,9 +1,12 @@
-#include <iostream>
+#include "semantic/parser.hpp"
 
-using namespace std;
+#include <cassert>
 
-int main()
-{
-    cout << "Hello World!" << endl;
-    return 0;
+using namespace Compiler::Semantic;
+
+int main(int argc, char* argv[]) {
+    assert(argc == 2);
+    
+    Parser parser{argv[1]};
+    parser.parse();
 }

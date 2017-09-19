@@ -1,4 +1,4 @@
-#include "mempool.hpp"
+#include "utils/mempool.hpp"
 #include "text/uchar.hpp"
 #include "text/ustring.hpp"
 #include "lexical/tokentype.hpp"
@@ -10,6 +10,7 @@
 #include <cassert>
 
 using namespace Compiler::Text;
+using namespace Compiler::Utils;
 using namespace Compiler::Lexical;
 using namespace Compiler::Diagnostic;
 

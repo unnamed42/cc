@@ -1,4 +1,4 @@
-#include "mempool.hpp"
+#include "utils/mempool.hpp"
 #include "text/ustring.hpp"
 #include "lexical/token.hpp"
 
@@ -9,6 +9,7 @@ namespace impl = Compiler::Lexical;
 
 using namespace Compiler;
 using namespace Compiler::Text;
+using namespace Compiler::Utils;
 using namespace Compiler::Lexical;
 using namespace Compiler::Diagnostic;
 
@@ -19,12 +20,12 @@ bool Token::is(TokenType type) const noexcept {
     return this->type == type;
 }
 
+UString* Token::content() { return nullptr; }
+
 ContentToken::ContentToken(SourceLoc *source, TokenType type, UString &&str) 
     : Token(source, type), content_(clone(std::move(str))) {}
 
-UString* ContentToken::content() {
-    return content_;
-}
+UString* ContentToken::content() { return content_; }
 
 
 Token* impl::makeToken(SourceLoc *source, TokenType type) {

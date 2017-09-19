@@ -1,10 +1,11 @@
-#include "mempool.hpp"
+#include "utils/mempool.hpp"
 #include "diagnostic/sourceloc.hpp"
 
 #include <cstring>
 
 namespace impl = Compiler::Diagnostic;
 
+using namespace Compiler::Utils;
 using namespace Compiler::Diagnostic;
 
 SourceLoc::SourceLoc(const char *path, FILE *file) 

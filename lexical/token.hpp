@@ -29,7 +29,7 @@ class Token {
         virtual ~Token() = default;
         
         bool is(TokenType type) const noexcept;
-        virtual UString* content() { return nullptr; }
+        virtual Text::UString* content();
 };
 
 class ContentToken : public Token {

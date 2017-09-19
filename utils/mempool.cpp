@@ -1,15 +1,17 @@
-#include "mempool.hpp"
+#include "utils/mempool.hpp"
 
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-namespace impl = Compiler;
+namespace impl = Compiler::Utils;
 
-impl::MemPool impl::pool{};
+using namespace Compiler::Utils;
 
-struct impl::MemPool::MemBlock {
+MemPool impl::pool{};
+
+struct MemPool::MemBlock {
     union {
         /**< next free list node */
         MemBlock  *next;
@@ -19,7 +21,7 @@ struct impl::MemPool::MemBlock {
     uint8_t data[0];
 };
 
-struct impl::MemPool::ChunkBlock {
+struct MemPool::ChunkBlock {
     /**< next chunk */
     ChunkBlock *next;
     /**< chunk data */
@@ -35,7 +37,7 @@ static inline void* align8Pointer(void *ptr) {
     return ptr;
 }
 
-impl::MemPool::MemBlock* impl::MemPool::addChunk(PoolBlock &owner, unsigned size) {
+MemPool::MemBlock* MemPool::addChunk(PoolBlock &owner, unsigned size) {
     auto count = block_size / size;
     auto *chunk = static_cast<ChunkBlock*>(malloc(count * sizeof(MemBlock) + block_size));
     // save my life from casting
@@ -55,7 +57,7 @@ impl::MemPool::MemBlock* impl::MemPool::addChunk(PoolBlock &owner, unsigned size
     return reinterpret_cast<MemBlock*>(chunk->data);
 }
 
-impl::MemPool::MemPool() {
+MemPool::MemPool() {
     unsigned size = 8;
     
     for(auto &p: chunks) {
@@ -64,7 +66,7 @@ impl::MemPool::MemPool() {
     }
 }
 
-impl::MemPool::~MemPool() {
+MemPool::~MemPool() {
     for(auto &&p: chunks) {
         ChunkBlock *ptr = p.chunk, *save;
         while (ptr) {
@@ -75,7 +77,7 @@ impl::MemPool::~MemPool() {
     }
 }
 
-void* impl::MemPool::allocate(unsigned size) {
+void* MemPool::allocate(unsigned size) {
     auto index = (size + 7) >> 3;
     assert(size <= sizes);
     auto *block = chunks[index].first;
@@ -87,7 +89,7 @@ void* impl::MemPool::allocate(unsigned size) {
     return block->data;
 }
 
-void* impl::MemPool::align8Allocate(unsigned size) {
+void* MemPool::align8Allocate(unsigned size) {
     auto index = (size >> 3) + ((size & 0x7) != 0);
     assert(size <= sizes);
     auto *first = chunks[index].first;
@@ -107,7 +109,7 @@ void* impl::MemPool::align8Allocate(unsigned size) {
     return align8Pointer(allocate(size + 8));
 }
 
-void* impl::MemPool::reallocate(void *orig, unsigned size) {
+void* MemPool::reallocate(void *orig, unsigned size) {
     auto *mem = reinterpret_cast<MemBlock*>(*(reinterpret_cast<void**>(orig) - 1));
     auto curr_size = ((mem->owner - chunks) + 1) << 3;
     if(curr_size >= size)
@@ -117,13 +119,13 @@ void* impl::MemPool::reallocate(void *orig, unsigned size) {
     return memcpy(allocate(size), mem, curr_size);
 }
 
-void* impl::MemPool::copy(void *src) {
+void* MemPool::copy(void *src) {
     auto *mem = reinterpret_cast<MemBlock*>(*(reinterpret_cast<void**>(src) - 1));
     auto size = ((mem->owner - chunks) + 1) << 3;
     return memcpy(allocate(size), src, size);
 }
 
-void impl::MemPool::deallocate(void *block) {
+void MemPool::deallocate(void *block) {
     auto *mem = reinterpret_cast<MemBlock*>(*(reinterpret_cast<void**>(block) - 1));
     auto *chunk = mem->owner;
     mem->next = chunk->first;
