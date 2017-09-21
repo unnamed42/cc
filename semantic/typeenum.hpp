@@ -48,13 +48,13 @@ enum Qualifier : uint32_t {
         Const | Volatile | Restrict,
 };
 
-enum StorageClass: uint8_t {
+enum StorageClass: uint32_t {
+    Auto = 0, // TODO: reversed keyword used for type deduction
     Typedef = 1,
     Static = Typedef << 1,
     Inline = Static << 1,
     Register = Inline << 1,
     Extern = Register << 1,
-    //Auto, // TODO: reversed keyword used for type deduction
 };
 
 enum TypeSize : uint32_t {
@@ -72,7 +72,9 @@ enum TypeSize : uint32_t {
     SizePointer = 4,
 };
 
-Specifier toSpecifier(Lexical::TokenType) noexcept;
+Specifier    toSpecifier(Lexical::TokenType) noexcept;
+StorageClass toStorageClass(Lexical::TokenType) noexcept;
+Qualifier    toQualifier(Lexical::TokenType) noexcept;
 
 const char* toString(Qualifier) noexcept;
 const char* toString(Specifier) noexcept;

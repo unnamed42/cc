@@ -49,6 +49,8 @@ class Lexer {
          * @return a token object.
          */
         Token* get();
+        
+        Token* expect(TokenType);
     private:
         /**
          * Extract a token that is a preprocessing number.

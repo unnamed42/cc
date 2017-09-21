@@ -150,6 +150,11 @@ enum TokenType : uint32_t {
 
 TokenType toTokenType(char op) noexcept;
 
+bool isAssignment(TokenType) noexcept;
+bool isStorageClass(TokenType) noexcept;
+bool isTypeSpecifier(TokenType) noexcept;
+bool isQualifier(TokenType) noexcept;
+
 const char* toString(TokenType type) noexcept;
 
 } // namespace Lexical

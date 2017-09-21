@@ -134,8 +134,8 @@ UString impl::specifierToString(uint32_t spec) {
  */
 uint32_t impl::addQualifier(uint32_t lhs, uint32_t rhs) noexcept {
     if(lhs & rhs) 
-        Printer(DIAGNOSTIC_WARNING) << epos
-            << "Duplicate qualifier " << toString(static_cast<Qualifier>(rhs));
+        dwarn << epos << "duplicate qualifier " 
+            << toString(static_cast<Qualifier>(rhs));
     return lhs |= rhs;
 }
 
@@ -148,12 +148,11 @@ uint32_t impl::addStorageClass(uint32_t lhs, uint32_t rhs) noexcept {
         0, // Extern
     };
     if(lhs & ~comp[offset(rhs)]) 
-        Printer(DIAGNOSTIC_ERROR) << epos 
-            << "Cannot apply storage class specifier " << toString(static_cast<StorageClass>(rhs)) 
+        derr << epos 
+            << "cannot apply storage class specifier " << toString(static_cast<StorageClass>(rhs)) 
             << " to previous one";
     else if(rhs & Register) 
-        Printer(DIAGNOSTIC_WARNING) << epos
-            << "Deprecated storage class specifier \"register\", it has no effect";
+        derr << epos << "deprecated storage class specifier 'register', it will has no effect";
     return lhs |= rhs;
 }
 
@@ -175,8 +174,8 @@ uint32_t impl::addSpecifier(uint32_t lhs, uint32_t rhs) noexcept {
     
     // incompatible two specifiers
     if(lhs & ~comp[offset(rhs)])
-        Printer(DIAGNOSTIC_ERROR) << epos
-            << "Cannot apply specifier "<< toString(static_cast<Specifier>(rhs))
+        derr << epos
+            << "cannot apply specifier "<< toString(static_cast<Specifier>(rhs))
             << "to specifier sequence " << specifierToString(lhs);
     
     if((lhs & Long) && (rhs & Long)) {

@@ -4,7 +4,7 @@
 #include "common.hpp"
 
 namespace Compiler {
-    
+
 namespace Diagnostic {
 struct SourceLoc;
 }
@@ -18,34 +18,34 @@ namespace Lexical {
 enum TokenType : uint32_t;
 
 class Token {
-    protected:
-        using SourceLoc = Diagnostic::SourceLoc;
     private:
-        SourceLoc *loc;
-        TokenType  type;
+        Diagnostic::SourceLoc *m_loc;
+        TokenType              m_type;
     public:
-        Token() = default;
-        Token(SourceLoc*, TokenType);
+        Token() noexcept = default;
+        Token(Diagnostic::SourceLoc*, TokenType) noexcept;
         virtual ~Token() = default;
         
         bool is(TokenType type) const noexcept;
-        virtual Text::UString* content();
+        Diagnostic::SourceLoc* sourceLoc() noexcept;
+        TokenType type() noexcept;
+        
+        virtual Text::UString toString() const;
 };
 
 class ContentToken : public Token {
     private:
-        using UString = Text::UString;
-    private:
-        UString *content_;
+        Text::UString *content_;
     public:
         using Token::Token;
-        ContentToken(SourceLoc*, TokenType, UString&&);
+        ContentToken(Diagnostic::SourceLoc*, TokenType, Text::UString*);
         
-        UString* content() override;
+        Text::UString toString() const override;
+        const Text::UString* content() const noexcept;
 };
 
 Token* makeToken(Diagnostic::SourceLoc *source, TokenType type);
-Token* makeToken(Diagnostic::SourceLoc *source, TokenType type, Text::UString &&str);
+Token* makeToken(Diagnostic::SourceLoc *source, TokenType type, Text::UString *str);
 
 } // namespace Lexical
 } // namespace Compiler

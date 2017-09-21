@@ -39,7 +39,7 @@ Token* Lexer::makeToken(TokenType type, UString &content) {
     auto loc = makeSourceLoc(&m_src.sourceLoc());
     loc->length = m_src.pos() - m_pos;
     loc->column -= loc->length;
-    return ::makeToken(loc, type, std::move(content));
+    return ::makeToken(loc, type, reinterpret_cast<UString*>(content.toHeap()));
 }
 
 void Lexer::logPos() {
@@ -48,6 +48,16 @@ void Lexer::logPos() {
 
 const SourceLoc* Lexer::sourceLoc() const noexcept {
     return &m_src.sourceLoc();
+}
+
+Token* Lexer::expect(TokenType type) {
+    auto ret = get();
+    if(!ret->is(type)) {
+        derr << ret->sourceLoc()
+            << "expecting '" << toString(type) << "', but get '"
+            << toString(ret->type()) << '\'';
+    }
+    return ret;
 }
 
 Token* Lexer::get() {
@@ -139,7 +149,7 @@ Token* Lexer::get() {
                 m_src.unget();
             }
             return makeToken(Dot);
-        default: Printer(DIAGNOSTIC_ERROR) << sourceLoc() << ch;
+        default: derr << sourceLoc() << ch;
     }
 }
 
@@ -246,7 +256,7 @@ UChar Lexer::getEscapedChar() {
         case '0': case '1': case '2': case '3':
         case '4': case '5': case '6': case '7':
             return getOctChar(ch);
-        default: Printer(DIAGNOSTIC_ERROR) << sourceLoc() << "Unknown escape sequence " << ch;
+        default: derr << sourceLoc() << "unknown escape sequence " << ch;
     }
 }
 
@@ -254,8 +264,8 @@ UChar Lexer::getUCN(unsigned len) {
     UChar::ValueType ret = 0;
     for(auto count = 0; count <= len; ++count) {
         if(!m_src.peek().isHex())
-            Printer(DIAGNOSTIC_ERROR) << sourceLoc() 
-                                      << "Expecting hexadecimal, but base " << m_src.get();
+            derr << sourceLoc() 
+                << "expecting hexadecimal, but is in base " << m_src.get();
         ret <<= 4;
         ret |= m_src.get().toHex();
     }
@@ -265,8 +275,8 @@ UChar Lexer::getUCN(unsigned len) {
 UChar Lexer::getHexChar() {
     UChar::ValueType ret = 0;
     if(!m_src.peek().isHex())
-        Printer(DIAGNOSTIC_ERROR) << sourceLoc()
-                                  << "Expecting hexadecimal, but base " << m_src.get();
+        derr << sourceLoc()
+            << "expecting hexadecimal, but is in base " << m_src.get();
     for(int size = 0; size <= 32; size += 4) {
         if(!m_src.peek().isHex())
             break;

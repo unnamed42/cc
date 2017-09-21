@@ -7,28 +7,46 @@ project(cc)
 
 include_directories(${${PROJECT_NAME}_SOURCE_DIR})
 
-set(SOURCE_FILES 
-        main.cpp
-        common.hpp
-        utils/mempool.hpp utils/mempool.cpp
+set(COMMON_FILES main.cpp common.hpp)
+
+set(UTILS_FILES 
         utils/iterator.hpp
-        utils/list.hpp utils/list.cpp
+        utils/vector.hpp
+        utils/mempool.hpp utils/mempool.cpp
+        utils/ptrlist.hpp utils/ptrlist.cpp)
+
+set(TEXT_FILES 
         text/uchar.hpp text/uchar.cpp
         text/ustring.hpp text/ustring.cpp
         text/file.hpp text/file.cpp
-        text/stream.hpp text/stream.cpp
+        text/stream.hpp text/stream.cpp)
+
+set(DIAGNOSTIC_FILES 
         diagnostic/printer.hpp diagnostic/printer.cpp
-        diagnostic/sourceloc.hpp diagnostic/sourceloc.cpp
+        diagnostic/sourceloc.hpp diagnostic/sourceloc.cpp)
+
+set(LEXICAL_FILES 
         lexical/tokentype.hpp lexical/tokentype.cpp
         lexical/token.hpp lexical/token.cpp
         lexical/lexer.hpp lexical/lexer.cpp
-        semantic/ast.hpp semantic/ast.cpp
-        semantic/type.hpp semantic/type.cpp
+        lexical/pp.hpp lexical/pp.cpp)
+
+set(SEMANTIC_FILES
+        semantic/opcode.hpp semantic/opcode.cpp
+        semantic/decl.hpp semantic/decl.cpp
+        semantic/expr.hpp semantic/expr.cpp
         semantic/typeenum.hpp semantic/typeenum.cpp
+        semantic/type.hpp semantic/type.cpp
         semantic/qualtype.hpp semantic/qualtype.cpp
         semantic/scope.hpp semantic/scope.cpp
-        semantic/parser.hpp semantic/parser.cpp
+        semantic/parser.hpp semantic/parser.cpp)
+
+set(CONSTEXPR_FILES 
         constexpr/value.hpp constexpr/value.cpp
         constexpr/evaluator.hpp constexpr/evaluator.cpp)
+
+set(SOURCE_FILES 
+        ${COMMON_FILES} ${UTILS_FILES} ${TEXT_FILES} ${DIAGNOSTIC_FILES}
+        ${LEXICAL_FILES} ${SEMANTIC_FILES} ${CONSTEXPR_FILES})
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})

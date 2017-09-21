@@ -10,7 +10,7 @@ template <class> class ConstIterator;
 template <class T>
 class Iterator<T*> {
     private:
-        using self = Iterator;
+        using self = Iterator<T*>;
     public:
         using difference_type = decltype((int*)(0) - (int*)(0));
         using value_type      = T;
@@ -56,6 +56,7 @@ class ConstIterator<Iterator<T>> {
         base m_cursor;
     public:
         explicit ConstIterator(const base &b) : m_cursor(b) {}
+        explicit ConstIterator(value_type *p) : m_cursor(p) {}
         ConstIterator(const self &other) : m_cursor(other.m_cursor) {}
         
         base get() noexcept { return m_cursor; }

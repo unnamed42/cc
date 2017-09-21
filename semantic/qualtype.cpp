@@ -13,6 +13,8 @@ using namespace Compiler::Semantic;
 
 const QualType impl::QualNull{nullptr, 0};
 
+QualType::QualType() noexcept : QualType(QualNull) {}
+
 QualType::QualType(Type *type, uint32_t qual) noexcept {
     reset(type, qual);
 }
@@ -77,13 +79,13 @@ QualType QualType::decay() noexcept {
     auto ptr = get();
     uint32_t qual = 0;
     
-    auto func = ptr->toFunction();
+    auto func = ptr->toFunc();
     auto array = ptr->toArray();
     
     if(func)
         ;
     else if(array) {
-        auto base = array->get();
+        auto base = array->base();
         qual = base.qual();
         ptr = base.get();
     } else 

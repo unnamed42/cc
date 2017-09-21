@@ -6,7 +6,9 @@
 using namespace Compiler::Text;
 using namespace Compiler::Diagnostic;
 
-Printer::Printer(DiagnoseFlag flag) noexcept : m_mode(flag) {}
+Printer::Printer(DiagnoseFlag flag) {
+    this->operator<<(flag);
+}
 
 Printer::~Printer() noexcept(false) {
     if(m_mode == DIAGNOSTIC_ERROR)
@@ -15,6 +17,12 @@ Printer::~Printer() noexcept(false) {
 
 Printer& Printer::operator<<(DiagnoseFlag flag) {
     m_mode = flag;
+    switch(flag) {
+        case DIAGNOSTIC_ERROR:
+            fputs("Error: ", stderr); break;
+        case DIAGNOSTIC_WARNING:
+            fputs("Warning: ", stderr); break;
+    }
     return *this;
 }
 
@@ -51,6 +59,11 @@ Printer& Printer::operator<<(const SourceLoc *loc) {
 
 Printer& Printer::operator<<(const SourceLoc &loc) {
     return operator<<(&loc);
+}
+
+Printer& Printer::operator<<(char c) {
+    fputc(c, stderr);
+    return *this;
 }
 
 Printer& Printer::operator<<(const char *str) {

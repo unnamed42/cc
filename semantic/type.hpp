@@ -1,6 +1,7 @@
 #ifndef TYPE_HPP
 #define TYPE_HPP
 
+#include "utils/ptrlist.hpp"
 #include "semantic/qualtype.hpp"
 
 #include <cstdint>
@@ -13,35 +14,37 @@ class UString;
 
 namespace Semantic {
 
-class TypeVoid;
-class TypeNumber;
-class TypeDerived;
-class TypePointer;
-class TypeArray;
-class TypeStruct;
-class TypeEnum;
-class TypeFunction;
+class VoidType;
+class NumberType;
+class DerivedType;
+class PointerType;
+class ArrayType;
+class StructType;
+class EnumType;
+class FuncType;
 
 class Type {
     public:
+        Type() noexcept = default;
         virtual ~Type() = default;
         
-        virtual TypeVoid*           toVoid()           noexcept;
-        virtual const TypeVoid*     toVoid()     const noexcept;
-        virtual TypeNumber*         toNumber()         noexcept;
-        virtual const TypeNumber*   toNumber()   const noexcept;
-        virtual TypeDerived*        toDerived()        noexcept;
-        virtual const TypeDerived*  toDerived()  const noexcept;
-        virtual TypePointer*        toPointer()        noexcept;
-        virtual const TypePointer*  toPointer()  const noexcept;
-        virtual TypeArray*          toArray()          noexcept;
-        virtual const TypeArray*    toArray()    const noexcept;
-        virtual TypeStruct*         toStruct()         noexcept;
-        virtual const TypeStruct*   toStruct()   const noexcept;
-        virtual TypeEnum*           toEnum()           noexcept;
-        virtual const TypeEnum*     toEnum()     const noexcept;
-        virtual TypeFunction*       toFunction()       noexcept;
-        virtual const TypeFunction* toFunction() const noexcept;
+        // virtual functions to avoid dynamic_cast
+        virtual VoidType*          toVoid()          noexcept;
+        virtual const VoidType*    toVoid()    const noexcept;
+        virtual NumberType*        toNumber()        noexcept;
+        virtual const NumberType*  toNumber()  const noexcept;
+        virtual DerivedType*       toDerived()       noexcept;
+        virtual const DerivedType* toDerived() const noexcept;
+        virtual PointerType*       toPointer()       noexcept;
+        virtual const PointerType* toPointer() const noexcept;
+        virtual ArrayType*         toArray()         noexcept;
+        virtual const ArrayType*   toArray()   const noexcept;
+        virtual StructType*        toStruct()        noexcept;
+        virtual const StructType*  toStruct()  const noexcept;
+        virtual EnumType*          toEnum()          noexcept;
+        virtual const EnumType*    toEnum()    const noexcept;
+        virtual FuncType*          toFunc()          noexcept;
+        virtual const FuncType*    toFunc()    const noexcept;
         
         bool isScalar()    noexcept;
         bool isAggregate() noexcept;
@@ -64,14 +67,14 @@ class Type {
  * The void type comprises an empty set of values; it is an incomplete type 
  * that cannot be completed.
  */
-class TypeVoid : public Type {
+class VoidType : public Type {
     public:
-        TypeVoid() = default;
+        VoidType() = default;
         
         bool isComplete() const noexcept override;
         
-        TypeVoid*       toVoid()       noexcept override;
-        const TypeVoid* toVoid() const noexcept override;
+        VoidType*       toVoid()       noexcept override;
+        const VoidType* toVoid() const noexcept override;
         
         Text::UString toString() const override;
 };
@@ -108,14 +111,14 @@ class TypeVoid : public Type {
  *
  * Integer and floating types are collectively called **arithmetic types**.
  */
-class TypeNumber : public Type {
+class NumberType : public Type {
     private:
         const uint32_t type;
     public:
-        TypeNumber(uint32_t) noexcept;
+        NumberType(uint32_t) noexcept;
         
-        TypeNumber*       toNumber()       noexcept override;
-        const TypeNumber* toNumber() const noexcept override;
+        NumberType*       toNumber()       noexcept override;
+        const NumberType* toNumber() const noexcept override;
         
         Text::UString toString() const override;
         
@@ -131,10 +134,11 @@ class TypeNumber : public Type {
         bool isInt()        const noexcept;
         bool isLong()       const noexcept;
         bool isLongLong()   const noexcept;
-        bool isIntegral()   const noexcept;
         bool isFloat()      const noexcept;
         bool isDouble()     const noexcept;
         bool isLongDouble() const noexcept;
+        bool isIntegral()   const noexcept;
+        bool isFraction()   const noexcept;
         
        /*
         * C99 6.3.1.1 Boolean, characters, and integers
@@ -181,7 +185,7 @@ class TypeNumber : public Type {
         * The integer promotions preserve value including sign. As discussed earlier, whether a
         * "plain" char is treated as signed is implementation-defined.
         */
-        TypeNumber* promote() noexcept;
+        NumberType* promote() noexcept;
 };
 
 /* C99 6.2.5 Types
@@ -229,30 +233,30 @@ class TypeNumber : public Type {
  * derived type (as noted above in the construction of derived types), or the type itself if the
  * type consists of no derived types.
  */
-class TypeDerived : public Type {
-    protected: 
-        QualType base;
+class DerivedType : public Type {
+    private: 
+        QualType m_base;
     protected:
-        explicit TypeDerived(QualType base) noexcept;
+        explicit DerivedType(QualType base) noexcept;
     public:
-        TypeDerived*       toDerived()       noexcept override;
-        const TypeDerived* toDerived() const noexcept override;
+        DerivedType*       toDerived()       noexcept override;
+        const DerivedType* toDerived() const noexcept override;
         
         unsigned size()  const noexcept override;
         unsigned align() const noexcept override;
         
-        QualType get() const noexcept;
-        void set(QualType base) noexcept;
+        QualType base() const noexcept;
+        void setBase(QualType base) noexcept;
 };
 
-class TypeArray : public TypeDerived {
+class ArrayType : public DerivedType {
     private:
         int m_bound;
     public:
-        explicit TypeArray(QualType base, int bound = 0) noexcept;
+        explicit ArrayType(QualType base, int bound = 0) noexcept;
         
-        TypeArray*       toArray()       noexcept override;
-        const TypeArray* toArray() const noexcept override;
+        ArrayType*       toArray()       noexcept override;
+        const ArrayType* toArray() const noexcept override;
         
         Text::UString toString() const override;
         
@@ -262,21 +266,21 @@ class TypeArray : public TypeDerived {
         
         bool isCompatible(Type*) noexcept override;
         
-        TypeArray* clone() override;
+        ArrayType* clone() override;
         
         int bound() const noexcept;
         void setBound(int bound) noexcept;
 };
 
-class TypePointer : public TypeDerived {
+class PointerType : public DerivedType {
     public:
-        explicit TypePointer(QualType base) noexcept;
-        explicit TypePointer(Type *base, uint32_t qual = 0) noexcept;
+        explicit PointerType(QualType base) noexcept;
+        explicit PointerType(Type *base, uint32_t qual = 0) noexcept;
         
         bool isCompatible(Type*) noexcept override;
         
-        TypePointer*       toPointer()       noexcept override;
-        const TypePointer* toPointer() const noexcept override;
+        PointerType*       toPointer()       noexcept override;
+        const PointerType* toPointer() const noexcept override;
         
         Text::UString toString() const override;
         
@@ -286,10 +290,62 @@ class TypePointer : public TypeDerived {
         bool isVoidPtr() const noexcept;
 };
 
-TypeVoid*    makeVoidType();
-TypeNumber*  makeNumberType(uint32_t spec);
-TypePointer* makePointerType(Type *base, uint32_t qual = 0);
-TypeArray*   makeArrayType(QualType base, int bound = -1);
+class StructType : public Type {
+    private:
+        /** list of Decl* */
+        Utils::PtrList *m_members;
+    public:
+        StructType(Utils::PtrList * = nullptr) noexcept;
+        
+        StructType*       toStruct()       noexcept override;
+        const StructType* toStruct() const noexcept override;
+        
+        bool isComplete() const noexcept override;
+        bool isCompatible(Type*) noexcept override;
+        
+        unsigned size()  const noexcept override;
+        unsigned align() const noexcept override;
+        
+        Text::UString toString() const override;
+        
+        Utils::PtrList& members() noexcept;
+        void setMembers(Utils::PtrList *members);
+};
+
+class EnumType : public Type {};
+
+class FuncType : public DerivedType {
+    private:
+        /**< list of decl* */
+        Utils::PtrList m_params;
+        bool           m_vaarg;
+    public:
+        FuncType(QualType ret, Utils::PtrList &&params, bool vaarg) noexcept;
+        
+        FuncType*       toFunc()       noexcept override;
+        const FuncType* toFunc() const noexcept override;
+        
+        bool isCompatible(Type*) noexcept override;
+        
+        Text::UString toString() const override;
+        
+        QualType returnType() const noexcept;
+        void setReturnType(QualType) noexcept;
+        
+        bool isVaArgs() const noexcept;
+        void setVaArgs(bool) noexcept;
+        
+        Utils::PtrList& params() noexcept;
+        void setParams(Utils::PtrList &&) noexcept;
+};
+
+VoidType*    makeVoidType();
+NumberType*  makeNumberType(uint32_t spec);
+PointerType* makePointerType(QualType base);
+PointerType* makePointerType(Type *base, uint32_t qual = 0);
+ArrayType*   makeArrayType(QualType base, int bound = -1);
+StructType*  makeStructType(Utils::PtrList *members = nullptr);
+FuncType*    makeFuncType(QualType ret, Utils::PtrList &&params, bool vaarg);
 
 } // namespace Semantic
 } // namespace Compiler
