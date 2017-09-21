@@ -5,129 +5,227 @@
 #include <cstdlib>
 #include <cstring>
 
+#define NEW(type, size) \
+    static_cast<type*>(malloc(size))
+
+#define MOVE_BYTES(base, offset) \
+    reinterpret_cast<decltype(base)>(reinterpret_cast<uint8_t*>(base) + offset)
+
+#define CONTAINER_OF(containerType, memberName, memberAddress) \
+    reinterpret_cast<containerType*>(MOVE_BYTES(memberAddress, -offsetof(containerType, memberName)))
+
 namespace impl = Compiler::Utils;
 
 using namespace Compiler::Utils;
 
-MemPool impl::pool{};
+static constexpr auto BLOCK_SIZE = 1 << 12; // 4KB
+static constexpr auto SIZES = 8; // difference size of memory, 8, 16, 24, 32, 40, 48, 56, 64
+static constexpr auto MAX_SIZE = 8 * SIZES;
 
-struct MemPool::MemBlock {
-    union {
-        /**< next free list node */
-        MemBlock  *next;
-        /**< owner of this free list node */
-        PoolBlock *owner;
-    };
-    uint8_t data[0];
+struct ListBlock {
+    ListBlock *next;
 };
 
-struct MemPool::ChunkBlock {
-    /**< next chunk */
-    ChunkBlock *next;
-    /**< chunk data */
+struct DoubleLinkedBlock {
+    ListBlock          block; // mimic inheritance
+    DoubleLinkedBlock *prev;
     uint8_t data[0];
+    
+    inline DoubleLinkedBlock* next() noexcept {
+        return reinterpret_cast<DoubleLinkedBlock*>(block.next);
+    }
+    
+    inline void setNext(void *next) noexcept {
+        block.next = static_cast<ListBlock*>(next);
+    }
 };
 
-static inline void* align8Pointer(void *ptr) {
-    auto &uintptr = reinterpret_cast<uintptr_t&>(ptr);
-    if(uintptr & 7) {
-        uintptr &= ~7;
-        uintptr += 8;
+struct PoolBlock {
+    /**< first node of free list */
+    ListBlock *freeList;
+    /**< points to first node of chunk list */
+    ListBlock *chunk;
+};
+
+/**
+ * See if lowest 3 bit of pointer address is 0
+ * @param ptr pointer address
+ */
+static inline bool lowest3bitClear(void *ptr) noexcept {
+    return (reinterpret_cast<uintptr_t>(ptr) & 7);
+}
+
+/**
+ * Make address 8-byte aligned
+ * @param ptr pointer address
+ * @return aligned address
+ */
+static inline void* align8Pointer(void *ptr) noexcept {
+    if(lowest3bitClear(ptr)) {
+        reinterpret_cast<uintptr_t&>(ptr) &= ~7;
+        reinterpret_cast<uintptr_t&>(ptr) += 8;
     }
     return ptr;
 }
 
-MemPool::MemBlock* MemPool::addChunk(PoolBlock &owner, unsigned size) {
-    auto count = block_size / size;
-    auto *chunk = static_cast<ChunkBlock*>(malloc(count * sizeof(MemBlock) + block_size));
-    // save my life from casting
-    union {
-        uint8_t   *as_uint8;
-        MemBlock *as_mem;
-    } first = {chunk->data};
-    owner.first = first.as_mem;
-    owner.chunk = chunk;
+/**
+ * Calculate size of memory block
+ * @param size requested size
+ * @return actual size of memory block
+ */
+static inline unsigned sizeOf(unsigned size) noexcept {
+    assert(size != 0);
+    return size < MAX_SIZE ? (size + 7) & ~7U : size;
+}
+
+/**
+ * Calculate index of MemBlock in whole MemPool
+ * @param size requested size
+ * @return index to chunks array
+ */
+static inline unsigned indexOf(unsigned size) noexcept {
+    assert(size != 0);
+    return size < MAX_SIZE ? ((size + 7) >> 3) - 1 : SIZES;
+}
+
+static inline void freeList(ListBlock *head) noexcept {
+    while(head) {
+        auto save = head->next;
+        free(head);
+        head = save;
+    }
+}
+
+static inline PoolBlock* chunkAt(void *base, unsigned index) noexcept {
+    return static_cast<PoolBlock*>(base) + index;
+}
+
+/**
+ * Allocate a memory block used as chunk, then attach to a PoolBlock
+ * @param owner owner of this chunk
+ * @param blockSize size of small block
+ * @return first available memory block of this new chunk
+ */
+static ListBlock* addChunk(PoolBlock *owner, unsigned blockSize) {
+    auto count = BLOCK_SIZE / blockSize;
+    auto chunk = NEW(ListBlock, BLOCK_SIZE + sizeof(ListBlock));
+    
+    auto mem = chunk + 1;
     while(count--) {
-        auto *next = reinterpret_cast<MemBlock*>(first.as_uint8 + size + sizeof(MemBlock));
-        first.as_mem->next = next;
-        first.as_mem = next;
+        auto next = MOVE_BYTES(mem, blockSize);
+        mem->next = next;
+        mem = next;
     }
-    first.as_mem->next = owner.first;
-    chunk->next = owner.chunk;
-    return reinterpret_cast<MemBlock*>(chunk->data);
-}
-
-MemPool::MemPool() {
-    unsigned size = 8;
     
-    for(auto &p: chunks) {
-        addChunk(p, size);
-        size += 8;
-    }
-}
-
-MemPool::~MemPool() {
-    for(auto &&p: chunks) {
-        ChunkBlock *ptr = p.chunk, *save;
-        while (ptr) {
-            save = ptr->next;
-            ::free(ptr);
-            ptr = save;
-        }
-    }
-}
-
-void* MemPool::allocate(unsigned size) {
-    auto index = (size + 7) >> 3;
-    assert(size <= sizes);
-    auto *block = chunks[index].first;
+    chunk->next = owner->chunk;
+    owner->chunk = chunk;
     
-    if(!block)
-        block = addChunk(chunks[index], index << 3);
-    chunks[index].first = block->next;
-    block->owner = chunks + index;
+    mem->next = owner->freeList;
+    owner->freeList = chunk + 1;
+    
+    return chunk + 1;
+}
+
+/**
+ * Allocate an arbitary size of memory, then attach it to PoolBlock
+ * @param owner owner of this memory
+ * @param blockSize size of this memory
+ * @return available memory of this memory block
+ */
+static void* arbitarySizedBlock(PoolBlock *owner, unsigned blockSize) {
+    auto block = NEW(DoubleLinkedBlock, sizeof(DoubleLinkedBlock) + blockSize);
+    
+    auto first = reinterpret_cast<DoubleLinkedBlock*>(owner->chunk);
+    if(first)
+        first->prev = block;
+    block->setNext(first);
+    block->prev = nullptr;
+    
+    owner->chunk = reinterpret_cast<ListBlock*>(block);
     return block->data;
 }
 
-void* MemPool::align8Allocate(unsigned size) {
-    auto index = (size >> 3) + ((size & 0x7) != 0);
-    assert(size <= sizes);
-    auto *first = chunks[index].first;
-    static MemBlock dummy;
-    dummy.next = first;
-    auto *block = &dummy;
-    while(block->next) {
-        auto *next = block->next;
-        if(reinterpret_cast<uintptr_t>(next->data) & 7)
-            block = next;
-        else {
-            block->next = next->next;
-            next->owner = chunks + index;
-            return next->data;
-        }
+MemPool impl::pool{};
+
+MemPool::MemPool() {
+    auto chunks = NEW(PoolBlock, (SIZES + 1) * sizeof(PoolBlock));
+    m_chunks = chunks;
+    for(auto i=0; i<SIZES+1; ++i) {
+        chunks[i].chunk = nullptr;
+        chunks[i].freeList = nullptr;
     }
+}
+
+MemPool::~MemPool() noexcept {
+    auto chunks = reinterpret_cast<PoolBlock*>(m_chunks);
+    for(auto i=0; i<SIZES; ++i) 
+        freeList(chunks[i].chunk);
+    free(m_chunks);
+}
+
+void* MemPool::allocate(unsigned size) {
+    auto index = indexOf(size);
+    auto chunk = chunkAt(m_chunks, index);
+    
+    if(index == SIZES) 
+        return arbitarySizedBlock(chunk, size);
+    
+    auto block = chunk->freeList;
+    if(!block) 
+        block = addChunk(chunk, sizeOf(size));
+    
+    chunk->freeList = block->next;
+    return block;
+}
+
+void* MemPool::align8Allocate(unsigned size) {
+    auto index = indexOf(size);
+    assert(index < SIZES);
+    
+    auto chunk = chunkAt(m_chunks, index);
+    ListBlock *first = chunk->freeList, *prev = nullptr;
+    while(first) {
+        if(lowest3bitClear(first)) {
+            if(!prev)
+                chunk->freeList = first->next;
+            else
+                prev->next = first->next;
+            return first;
+        }
+        prev = first;
+        first = first->next;
+    }
+    
     return align8Pointer(allocate(size + 8));
 }
 
-void* MemPool::reallocate(void *orig, unsigned size) {
-    auto *mem = reinterpret_cast<MemBlock*>(*(reinterpret_cast<void**>(orig) - 1));
-    auto curr_size = ((mem->owner - chunks) + 1) << 3;
-    if(curr_size >= size)
-        return orig;
-    // data inside `orig` after `free` is not destroyed
-    deallocate(orig);
-    return memcpy(allocate(size), mem, curr_size);
+void* MemPool::reallocate(void *current, unsigned oldSize, unsigned newSize) {
+    if(oldSize >= newSize)
+        return current;
+    auto ret = memcpy(allocate(newSize), current, oldSize);
+    deallocate(current, oldSize);
+    return ret;
 }
 
-void* MemPool::copy(void *src) {
-    auto *mem = reinterpret_cast<MemBlock*>(*(reinterpret_cast<void**>(src) - 1));
-    auto size = ((mem->owner - chunks) + 1) << 3;
-    return memcpy(allocate(size), src, size);
-}
-
-void MemPool::deallocate(void *block) {
-    auto *mem = reinterpret_cast<MemBlock*>(*(reinterpret_cast<void**>(block) - 1));
-    auto *chunk = mem->owner;
-    mem->next = chunk->first;
-    chunk->first = mem;
+void MemPool::deallocate(void *mem, unsigned size) noexcept {
+    if(!mem)
+        return;
+    auto index = indexOf(size);
+    auto chunk = chunkAt(m_chunks, index);
+    
+    if(index == SIZES) {
+        auto block = CONTAINER_OF(DoubleLinkedBlock, data, mem);
+        auto prev = block->prev;
+        auto next = block->next();
+        if(prev)
+            prev->setNext(next);
+        if(next)
+            next->prev = prev;
+        free(block);
+        return;
+    }
+    
+    auto block = static_cast<ListBlock*>(mem);
+    block->next = chunk->freeList;
+    chunk->freeList = block;
 }

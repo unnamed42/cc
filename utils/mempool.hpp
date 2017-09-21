@@ -3,6 +3,8 @@
 
 #include "common.hpp"
 
+#include <new>
+
 namespace Compiler {
 namespace Utils {
 
@@ -19,26 +21,12 @@ namespace Utils {
  */
 class MemPool {
     NO_COPY_MOVE(MemPool);
-    public:
-        /**< available memory space for each chunk */
-        static constexpr unsigned block_size = 1 << 12; // 4KB
-        /**< kinds of different block size */
-        static constexpr unsigned sizes = 5; // 8, 16, 24, 32, 64
     private:
-        struct MemBlock;
-        struct ChunkBlock;
-        struct PoolBlock {
-            /**< first node of free list */
-            MemBlock   *first;
-            /**< points to first node of chunk list */
-            ChunkBlock *chunk;
-        };
-    private:
-        PoolBlock chunks[sizes];
+        void *m_chunks;
     public:
         MemPool();
         
-        ~MemPool();
+        ~MemPool() noexcept;
         
         /**
          * @param size requested size
@@ -46,43 +34,37 @@ class MemPool {
          */
         void* allocate(unsigned size);
         
-        /**
-         * @tparam T type of allocated object
-         * @return an allocated memory block of size at least sizeof(T)
-         */
         template <class T>
         inline T* allocate() { return static_cast<T*>(allocate(sizeof(T))); }
         
         /**
-         * Memory allocated by this class should not get `free()`ed ,`realloc()`ed or `copy()`ed
+         * Memory allocated by this class should not get deallocate()-ed or reallocate()-ed
          * @param size requested size
-         * @return an aligned to 8 bytes memory address
+         * @return 8-byte aligned memory address
          */
         void* align8Allocate(unsigned size);
         
-        /**
-         * Extend previously allocated memory to at least `size` bytes.
-         * @param orig original address previously `malloc`-ed
-         * @param size requested size
-         * @return memory after reallocation
-         */
-        void* reallocate(void *orig, unsigned size);
+        template <class T>
+        inline T* align8Allocate() { return static_cast<T*>(align8Allocate(sizeof(T))); }
         
         /**
-         * Copy a block of memory. Input source must be `malloc()`ed by a same mempool instance
-         * @param src memory source
-         * @return copied memory
+         * Extend previously allocated memory to at least newSize bytes.
+         * @param current previously allocate()-ed memory
+         * @param oldSize current size of this memory
+         * @param newSize expected new size of memory
+         * @return memory after reallocation
          */
-        void* copy(void *src);
+        void* reallocate(void *current, unsigned oldSize, unsigned newSize);
         
         /**
          * Free previously allocated memory block.
-         * @param block allocated memory previously returned by `malloc`
+         * @param block allocated memory previously returned by allocate()
+         * @param size size which passed to allocate()
          */
-        void deallocate(void *block);
-    
-    private:
-        static MemBlock* addChunk(PoolBlock &owner, unsigned size);
+        void deallocate(void *block, unsigned size) noexcept;
+        
+        template <class T>
+        inline void deallocate(T *mem) noexcept { deallocate(mem, sizeof(mem)); }
 };
 
 extern MemPool pool;
