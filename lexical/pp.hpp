@@ -2,7 +2,7 @@
 #define PP_HPP
 
 #include "common.hpp"
-#include "utils/ptrlist.hpp"
+#include "utils/vector.hpp"
 #include "lexical/lexer.hpp"
 
 namespace Compiler {
@@ -15,8 +15,8 @@ enum TokenType : uint32_t;
 class PP {
     NO_COPY_MOVE(PP);
     private:
-        Utils::PtrList m_unget;
-        Lexer          m_src;
+        Utils::TokenList m_unget;
+        Lexer            m_src;
     public:
         explicit PP(const char *path);
         

@@ -1,7 +1,7 @@
 #ifndef DECL_HPP
 #define DECL_HPP
 
-#include "utils/ptrlist.hpp"
+#include "utils/vector.hpp"
 #include "semantic/qualtype.hpp"
 #include "semantic/typeenum.hpp"
 
@@ -44,13 +44,13 @@ class Decl {
 
 class FuncDecl : public Decl {
     private:
-        Utils::PtrList m_params;
+        Utils::DeclList m_params;
     public:
-        FuncDecl(Lexical::Token*, QualType, StorageClass stor, Utils::PtrList&&) noexcept;
+        FuncDecl(Lexical::Token*, QualType, StorageClass stor, Utils::DeclList&&) noexcept;
         
         FuncDecl* toFunc() noexcept override;
         
-        Utils::PtrList& params() noexcept;
+        Utils::DeclList& params() noexcept;
 };
 
 Decl* makeDecl(Lexical::Token *name, QualType type, StorageClass stor = Auto);

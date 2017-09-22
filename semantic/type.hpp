@@ -1,7 +1,7 @@
 #ifndef TYPE_HPP
 #define TYPE_HPP
 
-#include "utils/ptrlist.hpp"
+#include "utils/vector.hpp"
 #include "semantic/qualtype.hpp"
 
 #include <cstdint>
@@ -292,10 +292,9 @@ class PointerType : public DerivedType {
 
 class StructType : public Type {
     private:
-        /** list of Decl* */
-        Utils::PtrList *m_members;
+        Utils::DeclList *m_members;
     public:
-        StructType(Utils::PtrList * = nullptr) noexcept;
+        StructType(Utils::DeclList* = nullptr) noexcept;
         
         StructType*       toStruct()       noexcept override;
         const StructType* toStruct() const noexcept override;
@@ -308,19 +307,18 @@ class StructType : public Type {
         
         void print(Diagnostic::Logger&) const override;
         
-        Utils::PtrList& members() noexcept;
-        void setMembers(Utils::PtrList *members);
+        Utils::DeclList& members() noexcept;
+        void setMembers(Utils::DeclList *members);
 };
 
 class EnumType : public Type {};
 
 class FuncType : public DerivedType {
     private:
-        /**< list of Decl* */
-        Utils::PtrList m_params;
-        bool           m_vaarg;
+        Utils::DeclList m_params;
+        bool            m_vaarg;
     public:
-        FuncType(QualType ret, Utils::PtrList &&params, bool vaarg) noexcept;
+        FuncType(QualType ret, Utils::DeclList &&params, bool vaarg) noexcept;
         
         FuncType*       toFunc()       noexcept override;
         const FuncType* toFunc() const noexcept override;
@@ -335,8 +333,8 @@ class FuncType : public DerivedType {
         bool isVaArgs() const noexcept;
         void setVaArgs(bool) noexcept;
         
-        Utils::PtrList& params() noexcept;
-        void setParams(Utils::PtrList &&) noexcept;
+        Utils::DeclList& params() noexcept;
+        void setParams(Utils::DeclList&&) noexcept;
 };
 
 VoidType*    makeVoidType();
@@ -344,8 +342,8 @@ NumberType*  makeNumberType(uint32_t spec);
 PointerType* makePointerType(QualType base);
 PointerType* makePointerType(Type *base, uint32_t qual = 0);
 ArrayType*   makeArrayType(QualType base, int bound = -1);
-StructType*  makeStructType(Utils::PtrList *members = nullptr);
-FuncType*    makeFuncType(QualType ret, Utils::PtrList &&params, bool vaarg);
+StructType*  makeStructType(Utils::DeclList *members = nullptr);
+FuncType*    makeFuncType(QualType ret, Utils::DeclList &&params, bool vaarg);
 
 } // namespace Semantic
 } // namespace Compiler

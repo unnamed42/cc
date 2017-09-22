@@ -1,6 +1,7 @@
 #ifndef EXPR_HPP
 #define EXPR_HPP
 
+#include "utils/vector.hpp"
 #include "semantic/qualtype.hpp"
 
 #include <cstdint>
@@ -88,7 +89,7 @@ BinaryExpr*  makeAssignment(Lexical::Token *assignOp, Expr *lvalue, Expr *assign
 
 TernaryExpr* makeTernary(Lexical::Token *tok, Expr *cond, Expr *yes, Expr *no);
 
-CallExpr*    makeCall(FuncDecl *func, Utils::PtrList&&);
+CallExpr*    makeCall(FuncDecl *func, Utils::ExprList&&);
 } // namespace Semantic
 } // namespace Compiler
 

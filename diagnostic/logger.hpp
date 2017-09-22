@@ -13,6 +13,7 @@ class UString;
 }
 namespace Lexical {
 enum TokenType : uint32_t;
+class Token;
 }
 namespace Semantic {
 class Decl;
@@ -67,6 +68,7 @@ class Logger {
         self& operator<<(const Text::UChar &u);
         self& operator<<(const Text::UString &s);
         
+        self& operator<<(Lexical::Token*);
         self& operator<<(Lexical::TokenType);
         
         self& operator<<(Semantic::Specifier);

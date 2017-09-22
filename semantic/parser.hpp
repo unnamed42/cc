@@ -70,7 +70,7 @@ class Parser {
         Expr* binaryExpr();
         Expr* binaryExpr(Expr*, unsigned precedence);
         Expr* conditionalExpr();
-        Utils::PtrList argumentExprList();
+        Utils::ExprList argumentExprList();
         
         QualType typeName();
         
@@ -85,7 +85,7 @@ class Parser {
         QualType declSpecifier(StorageClass&);
         
         StructType* structUnionSpecifier();
-        void structDeclList(Utils::PtrList&);
+        void structDeclList(Utils::DeclList&);
         Decl* structDeclarator(QualType base);
         
         EnumType*   enumSpecifier();

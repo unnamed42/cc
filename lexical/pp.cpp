@@ -57,7 +57,6 @@ void PP::expect(TokenType type) {
         derr << "unexpected end of file";
     if(!ret->is(type)) 
         derr << ret->sourceLoc()
-            << "expecting " << toString(type) 
-            << ", but get " << ret->toString();
+            << "expecting " << type << ", but get " << ret;
     pool.deallocate(ret);
 }

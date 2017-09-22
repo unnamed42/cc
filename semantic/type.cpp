@@ -1,5 +1,6 @@
 #include "utils/mempool.hpp"
 #include "semantic/type.hpp"
+#include "semantic/decl.hpp"
 #include "semantic/typeenum.hpp"
 #include "diagnostic/logger.hpp"
 
@@ -118,31 +119,52 @@ bool PointerType::isCompatible(Type *that) noexcept {
     return p && base()->isCompatible(p->base());
 }
 
-StructType::StructType(PtrList *list) noexcept : m_members(list) {}
+StructType::StructType(DeclList *list) noexcept : m_members(list) {}
 StructType*       StructType::toStruct()       noexcept { return this; }
 const StructType* StructType::toStruct() const noexcept { return this; }
 bool StructType::isComplete() const noexcept { return m_members != nullptr; }
 bool StructType::isCompatible(Type *other) noexcept {}
 unsigned StructType::size()  const noexcept {}
 unsigned StructType::align() const noexcept {}
-PtrList& StructType::members() noexcept { return *m_members; }
-void StructType::setMembers(PtrList *members) { m_members = members; }
+DeclList& StructType::members() noexcept { return *m_members; }
+void StructType::setMembers(DeclList *members) { m_members = members; }
 void StructType::print(Logger &log) const {
-    
+    log << "struct";
+    if(!m_members)
+        return;
+    log << '{';
+    for(auto member : *m_members) 
+        log << member->type() << ' ' << member->token() << ';';
+    log << '}';
 }
 
-FuncType::FuncType(QualType ret, PtrList &&list, bool vaarg) noexcept 
-    : DerivedType(ret), m_params(static_cast<PtrList&&>(list)), m_vaarg(vaarg) {}
+FuncType::FuncType(QualType ret, DeclList &&list, bool vaarg) noexcept 
+    : DerivedType(ret), m_params(std::move(list)), m_vaarg(vaarg) {}
 FuncType*       FuncType::toFunc()       noexcept { return this; }
 const FuncType* FuncType::toFunc() const noexcept { return this; }
 QualType FuncType::returnType()          const noexcept { return base(); }
 void     FuncType::setReturnType(QualType ret) noexcept { setBase(ret); }
 bool FuncType::isVaArgs()       const noexcept { return m_vaarg; }
 void FuncType::setVaArgs(bool vaargs) noexcept { m_vaarg = vaargs; }
-PtrList& FuncType::params()                    noexcept { return m_params; }
-void     FuncType::setParams(PtrList &&params) noexcept { m_params = static_cast<PtrList&&>(params); }
+DeclList& FuncType::params()                    noexcept { return m_params; }
+void     FuncType::setParams(DeclList &&params) noexcept { m_params = std::move(params); }
+bool FuncType::isCompatible(Type *other) noexcept {}
 void FuncType::print(Logger &log) const {
-    
+    log << returnType() << '(';
+    bool first = true;
+    for(auto param : m_params) {
+        if(!first) {
+            log << ", ";
+            first = false;
+        }
+        log << param->type();
+    }
+    if(isVaArgs()) {
+        if(!first)
+            log << ", ";
+        log << "...";
+    }
+    log << ')';
 }
 
 VoidType* impl::makeVoidType() {
@@ -217,10 +239,10 @@ ArrayType* impl::makeArrayType(QualType base, int bound) {
     return new (pool.align8Allocate(sizeof(ArrayType))) ArrayType(base, bound);
 }
 
-StructType* impl::makeStructType(PtrList *members) {
+StructType* impl::makeStructType(DeclList *members) {
     return new (pool.align8Allocate(sizeof(StructType))) StructType(members);
 }
 
-FuncType* impl::makeFuncType(QualType ret, PtrList &&list, bool vaarg) {
-    return new (pool.align8Allocate(sizeof(FuncType))) FuncType(ret, static_cast<PtrList&&>(list), vaarg);
+FuncType* impl::makeFuncType(QualType ret, DeclList &&list, bool vaarg) {
+    return new (pool.align8Allocate(sizeof(FuncType))) FuncType(ret, std::move(list), vaarg);
 }

@@ -1,5 +1,6 @@
 #include "text/uchar.hpp"
 #include "text/ustring.hpp"
+#include "lexical/token.hpp"
 #include "lexical/tokentype.hpp"
 #include "semantic/decl.hpp"
 #include "semantic/type.hpp"
@@ -57,9 +58,9 @@ Logger& Logger::operator<<(DiagnoseFlag flag) {
     m_mode = flag;
     switch(flag) {
         case DIAGNOSTIC_ERROR:
-            fputs("error: ", stderr); break;
+            fputs("error: \n", stderr); break;
         case DIAGNOSTIC_WARNING:
-            fputs("warning: ", stderr); break;
+            fputs("warning: \n", stderr); break;
     }
     return *this;
 }
@@ -146,6 +147,11 @@ Logger& Logger::operator<<(QualType qt) {
 
 Logger& Logger::operator<<(Type *type) {
     type->print(*this);
+    return *this;
+}
+
+Logger& Logger::operator<<(Token *tok) {
+    tok->print(*this);
     return *this;
 }
 

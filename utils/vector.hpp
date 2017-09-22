@@ -7,6 +7,15 @@
 #include <cstring>
 
 namespace Compiler {
+
+namespace Lexical {
+class Token;
+}
+namespace Semantic {
+class Decl;
+class Expr;
+}
+
 namespace Utils {
 
 template <class T>
@@ -95,6 +104,14 @@ class Vector {
             m_data = static_cast<decltype(m_data)>(p);
         }
 };
+
+extern template class Vector<Lexical::Token*>;
+extern template class Vector<Semantic::Decl*>;
+extern template class Vector<Semantic::Expr*>;
+
+using TokenList = Vector<Lexical::Token*>;
+using DeclList = Vector<Semantic::Decl*>;
+using ExprList = Vector<Semantic::Expr*>;
 
 } // namespace Utils
 } // namespace Compiler

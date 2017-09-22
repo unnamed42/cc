@@ -1,5 +1,4 @@
 #include "text/ustring.hpp"
-#include "utils/ptrlist.hpp"
 #include "lexical/token.hpp"
 #include "lexical/tokentype.hpp"
 #include "semantic/typeenum.hpp"
@@ -116,7 +115,7 @@ Expr* Parser::primaryExpr() {
         case KeyTrue: case KeyFalse: return makeBool(tok);
         default: 
             derr << tok->sourceLoc()
-                << "expecting a primary expression, but get " << tok->toString();
+                << "expecting a primary expression, but get " << tok;
     }
     assert(false);
 }
@@ -181,8 +180,8 @@ Expr* Parser::expr() {
 }
 
 // same definition as expression
-PtrList Parser::argumentExprList() {
-    PtrList list{};
+ExprList Parser::argumentExprList() {
+    ExprList list{};
     while(!m_src.test(RightParen)) {
         list.pushBack(assignmentExpr());
         if(!m_src.test(Comma)) {
@@ -383,21 +382,23 @@ Expr* Parser::conditionalExpr() {
 QualType Parser::typeSpecifier(StorageClass *stor) {
     QualType ret{};
     auto tok = get();
+    auto tokType = tok->type();
+    
     uint32_t qual = 0, spec = 0;
     
     // only one storage class specifier is allowed
-    if(isStorageClass(tok->type())) {
+    if(isStorageClass(tokType)) {
         if(!stor) 
             derr << tok->sourceLoc() 
-                << "unexpected storage class specifier " << tok->toString();
+                << "unexpected storage class specifier " << tokType;
         
-        *stor = toStorageClass(tok->type());
+        *stor = toStorageClass(tokType);
         tok = get();
     }
     
     for(;;tok = get()) {
         markPos(tok); // for error message printing
-        auto tokType = tok->type();
+        tokType = tok->type();
         switch(tokType) {
             case KeyConst: case KeyVolatile: case KeyRestrict:
                 qual = addQualifier(qual, toQualifier(tokType));
@@ -426,7 +427,7 @@ QualType Parser::typeSpecifier(StorageClass *stor) {
 done:
     if(!spec && !ret) 
         derr << tok->sourceLoc()
-            << "unexpected token " << tok->toString();
+            << "unexpected token " << tok;
     m_src.unget(tok);
     if(spec && ret)
         derr << tok->sourceLoc()
@@ -492,16 +493,16 @@ StructType* Parser::structUnionSpecifier() {
                 type = prevTag->type()->toStruct();
                 if(!type)
                     derr << tok->sourceLoc()
-                        << tok->toString() << " is not declared as a struct tag";
+                        << tok << " is not declared as a struct tag";
             }
             // definition of an incomplete existing tag
             if(type->isComplete())
                 // TODO: union check
                 derr << tok->sourceLoc()
-                    << "redefinition of tag " << tok->toString();
-            PtrList members{};
+                    << "redefinition of tag " << tok;
+            DeclList members{};
             structDeclList(members);
-            type->setMembers(reinterpret_cast<PtrList*>(members.toHeap()));
+            type->setMembers(members.toHeap());
             m_src.expect(BlockClose);
         } else {
             // without a '{', means this just a type reference
@@ -516,15 +517,15 @@ StructType* Parser::structUnionSpecifier() {
         }
     } else if(tok->is(BlockOpen)) {
         // anonymous struct tag definition
-        PtrList members{};
+        DeclList members{};
         structDeclList(members);
-        type = makeStructType(reinterpret_cast<PtrList*>(members.toHeap()));
+        type = makeStructType(members.toHeap());
         m_src.expect(BlockClose);
     }
     return type;
 }
 
-void Parser::structDeclList(PtrList &members) {
+void Parser::structDeclList(DeclList &members) {
     ScopeGuard guard{m_curr, BlockScope};
     while(isSpecifier(m_src.peek())) {
         auto type = typeSpecifier();
@@ -629,7 +630,7 @@ QualType Parser::arrayFuncDeclarator(QualType base) {
         if(tok->is(LeftSubscript)) {// array type
             if(!base->isComplete() || base->toFunc())
                 derr << tok->sourceLoc() 
-                    << "declaration of array of invalid type";
+                    << "declaration of array of invalid type " << base;
             int len = 0;
             if(!m_src.test(RightSubscript)) {
                 len = evalLong(conditionalExpr());
@@ -777,7 +778,7 @@ Decl* Parser::declarator(StorageClass stor, QualType base) {
  */
 FuncType* Parser::paramTypeList(QualType ret) {
     // LeftParen handled in caller function
-    PtrList params{};
+    DeclList params{};
     if(m_src.test(RightParen)) 
         // is a function with an unspecified parameter list
         return makeFuncType(ret, std::move(params), false);

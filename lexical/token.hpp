@@ -7,6 +7,7 @@ namespace Compiler {
 
 namespace Diagnostic {
 struct SourceLoc;
+class Logger;
 }
 
 namespace Text {
@@ -30,7 +31,7 @@ class Token {
         Diagnostic::SourceLoc* sourceLoc() noexcept;
         TokenType type() noexcept;
         
-        virtual Text::UString toString() const;
+        virtual void print(Diagnostic::Logger&) const;
 };
 
 class ContentToken : public Token {
@@ -40,8 +41,9 @@ class ContentToken : public Token {
         using Token::Token;
         ContentToken(Diagnostic::SourceLoc*, TokenType, Text::UString*);
         
-        Text::UString toString() const override;
         const Text::UString* content() const noexcept;
+        
+        void print(Diagnostic::Logger&) const override;
 };
 
 Token* makeToken(Diagnostic::SourceLoc *source, TokenType type);

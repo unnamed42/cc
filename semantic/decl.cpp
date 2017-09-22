@@ -18,10 +18,10 @@ QualType Decl::type() noexcept { return m_type; }
 const UString& Decl::name() const noexcept { return *reinterpret_cast<ContentToken*>(m_tok)->content(); }
 StorageClass Decl::storageClass() const noexcept { return m_stor; }
 
-FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, PtrList &&params) noexcept 
-    : Decl(tok, type, stor), m_params(static_cast<PtrList&&>(params)) {}
+FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, DeclList &&params) noexcept 
+    : Decl(tok, type, stor), m_params(std::move(params)) {}
 FuncDecl* FuncDecl::toFunc() noexcept { return this; }
-PtrList& FuncDecl::params() noexcept { return m_params; }
+DeclList& FuncDecl::params() noexcept { return m_params; }
 
 Decl* impl::makeDecl(Token *tok, QualType type, StorageClass stor) {
     return new (pool.allocate<Decl>()) Decl(tok, type, stor);
