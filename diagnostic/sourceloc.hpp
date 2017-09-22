@@ -27,13 +27,6 @@ struct SourceLoc {
     SourceLoc(const char *path, FILE *file);
 };
 
-SourceLoc* makeSourceLoc(const char *path,
-                         FILE *file,
-                         SourceLoc::PosType lineBegin,
-                         unsigned line,
-                         unsigned column,
-                         unsigned length = 0);
-
 SourceLoc* makeSourceLoc(const SourceLoc *source);
 
 } // namespace Diagnostic

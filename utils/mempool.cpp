@@ -233,3 +233,7 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
 void MemPool::clear() noexcept {
     this->~MemPool();
 }
+
+void* operator new(std::size_t size, MemPool &pool, bool align8) {
+    return align8 ? pool.align8Allocate(size) : pool.allocate(size);
+}

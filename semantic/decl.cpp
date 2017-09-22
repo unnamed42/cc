@@ -20,10 +20,10 @@ const UString& Decl::name() const noexcept { return *m_tok->content(); }
 StorageClass Decl::storageClass() const noexcept { return m_stor; }
 
 FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, DeclList &&params) noexcept 
-    : Decl(tok, type, stor), m_params(std::move(params)) {}
+    : Decl(tok, type, stor), m_params(move(params)) {}
 FuncDecl* FuncDecl::toFunc() noexcept { return this; }
 DeclList& FuncDecl::params() noexcept { return m_params; }
 
 Decl* impl::makeDecl(Token *tok, QualType type, StorageClass stor) {
-    return new (pool.allocate<Decl>()) Decl(tok, type, stor);
+    return new (pool) Decl(tok, type, stor);
 }

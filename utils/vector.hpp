@@ -1,6 +1,7 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+#include "common.hpp"
 #include "utils/mempool.hpp"
 #include "utils/iterator.hpp"
 
@@ -52,7 +53,7 @@ class Vector {
          * @return memory where Vector moved into
          */
         self* toHeap() {
-            return new (pool.allocate<self>()) self(std::move(*this));
+            return new (pool) self(move(*this));
         }
         
         void swap(self &other) noexcept {

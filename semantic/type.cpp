@@ -139,7 +139,7 @@ void StructType::print(Logger &log) const {
 }
 
 FuncType::FuncType(QualType ret, DeclList &&list, bool vaarg) noexcept 
-    : DerivedType(ret), m_params(std::move(list)), m_vaarg(vaarg) {}
+    : DerivedType(ret), m_params(move(list)), m_vaarg(vaarg) {}
 FuncType*       FuncType::toFunc()       noexcept { return this; }
 const FuncType* FuncType::toFunc() const noexcept { return this; }
 QualType FuncType::returnType()          const noexcept { return base(); }
@@ -147,7 +147,7 @@ void     FuncType::setReturnType(QualType ret) noexcept { setBase(ret); }
 bool FuncType::isVaArgs()       const noexcept { return m_vaarg; }
 void FuncType::setVaArgs(bool vaargs) noexcept { m_vaarg = vaargs; }
 DeclList& FuncType::params()                    noexcept { return m_params; }
-void     FuncType::setParams(DeclList &&params) noexcept { m_params = std::move(params); }
+void     FuncType::setParams(DeclList &&params) noexcept { m_params = move(params); }
 bool FuncType::isCompatible(Type *other) noexcept {}
 void FuncType::print(Logger &log) const {
     log << returnType() << '(';
@@ -168,12 +168,12 @@ void FuncType::print(Logger &log) const {
 }
 
 VoidType* impl::makeVoidType() {
-    static VoidType *v = new (pool.align8Allocate(sizeof(VoidType))) VoidType{};
+    static VoidType *v = new (pool, true) VoidType{};
     return v;
 }
 
 NumberType* impl::makeNumberType(uint32_t spec) {
-    #define PLACEMENT_NEW(typecode) new (pool.align8Allocate(sizeof(NumberType))) NumberType(typecode)
+    #define PLACEMENT_NEW(typecode) new (pool, true) NumberType(typecode)
     #define DECLARE_NUMBER_TYPE(name, typecode) static auto name = PLACEMENT_NEW(typecode)
     
     DECLARE_NUMBER_TYPE(boolt, Bool);
@@ -228,21 +228,21 @@ NumberType* impl::makeNumberType(uint32_t spec) {
 }
 
 PointerType* impl::makePointerType(QualType base) {
-    return new (pool.align8Allocate(sizeof(PointerType))) PointerType(base);
+    return new (pool) PointerType(base);
 }
 
 PointerType* impl::makePointerType(Type *type, uint32_t qual) {
-    return new (pool.align8Allocate(sizeof(PointerType))) PointerType(type, qual);
+    return new (pool) PointerType(type, qual);
 }
 
 ArrayType* impl::makeArrayType(QualType base, int bound) {
-    return new (pool.align8Allocate(sizeof(ArrayType))) ArrayType(base, bound);
+    return new (pool) ArrayType(base, bound);
 }
 
 StructType* impl::makeStructType(DeclList *members) {
-    return new (pool.align8Allocate(sizeof(StructType))) StructType(members);
+    return new (pool) StructType(members);
 }
 
 FuncType* impl::makeFuncType(QualType ret, DeclList &&list, bool vaarg) {
-    return new (pool.align8Allocate(sizeof(FuncType))) FuncType(ret, std::move(list), vaarg);
+    return new (pool) FuncType(ret, move(list), vaarg);
 }

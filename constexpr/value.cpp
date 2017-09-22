@@ -22,10 +22,9 @@ UString* Value::asString() noexcept { return nullptr; }
 
 #define IMPLEMENT(name) \
     name##Value* impl::makeValue(SourceLoc *source, name##Value::ValueType value) { \
-        auto p = pool.allocate(sizeof(name##Value)); \
-        return new (p) name##Value{source, std::move(value)}; \
+        return new (pool) name##Value{source, move(value)}; \
     } \
-    name##Value::name##Value(SourceLoc *source, name##Value::ValueType value) noexcept : Value(source), value(std::move(value)) {} \
+    name##Value::name##Value(SourceLoc *source, name##Value::ValueType value) noexcept : Value(source), value(move(value)) {} \
     bool name##Value::is##name() const noexcept { return true; } \
     name##Value::ValueType* name##Value::as##name() noexcept { return &value; } \
     name##Value& name##Value::operator+=(Value &other) 

@@ -71,11 +71,11 @@ TernaryExpr::TernaryExpr(Token *tok, Expr *cond, Expr *yes, Expr *no) noexcept
     : Expr(tok), cond(cond), yes(yes), no(no) {}
 
 UnaryExpr* impl::makeUnary(Token *tok, OpCode op, Expr *expr) {
-    return new (pool.allocate(sizeof(UnaryExpr))) UnaryExpr(tok, op, expr);
+    return new (pool) UnaryExpr(tok, op, expr);
 }
 
 BinaryExpr* impl::makeBinary(Token *tok, OpCode op, Expr *lhs, Expr *rhs) {
-    return new (pool.allocate(sizeof(BinaryExpr))) BinaryExpr(tok, op, lhs, rhs);
+    return new (pool) BinaryExpr(tok, op, lhs, rhs);
 }
 
 BinaryExpr* impl::makeMemberAccess(Token *op, Expr *base, Token *member) {
@@ -115,7 +115,7 @@ BinaryExpr* impl::makeMemberAccess(Token *op, Expr *base, Token *member) {
     auto resType = (*id)->type();
     resType.addQual(baseType.qual());
     // FIXME: member expr 
-    return new (pool.allocate(sizeof(BinaryExpr))) BinaryExpr(op, access, base, nullptr);
+    return new (pool) BinaryExpr(op, access, base, nullptr);
 }
 
 CallExpr* impl::makeCall(Token *tok, FuncDecl *func, Utils::ExprList &&args) {
@@ -142,5 +142,5 @@ CallExpr* impl::makeCall(Token *tok, FuncDecl *func, Utils::ExprList &&args) {
     if(param == paramEnd && arg != argEnd && !funcType->isVaArgs())
         derr << (*arg)->sourceLoc() << "too many arguments";
     
-    return new (pool.allocate(sizeof(CallExpr))) CallExpr(func, std::move(args));
+    return new (pool) CallExpr(func, move(args));
 }

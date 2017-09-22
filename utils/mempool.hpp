@@ -1,9 +1,9 @@
 #ifndef MEMPOOL_HPP
 #define MEMPOOL_HPP
 
-#include "common.hpp"
+#include <cstddef>
 
-#include <new>
+#include "common.hpp"
 
 namespace Compiler {
 namespace Utils {
@@ -34,18 +34,12 @@ class MemPool {
          */
         void* allocate(unsigned size);
         
-        template <class T>
-        inline T* allocate() { return static_cast<T*>(allocate(sizeof(T))); }
-        
         /**
          * Memory allocated by this class should not get deallocate()-ed or reallocate()-ed
          * @param size requested size
          * @return 8-byte aligned memory address
          */
         void* align8Allocate(unsigned size);
-        
-        template <class T>
-        inline T* align8Allocate() { return static_cast<T*>(align8Allocate(sizeof(T))); }
         
         /**
          * Extend previously allocated memory to at least newSize bytes.
@@ -73,5 +67,10 @@ extern MemPool pool;
 
 } // namespace Utils
 } // namespace Compiler
+
+/**
+ * Provied a placement new operator for MemPool
+ */
+void* operator new(std::size_t size, Compiler::Utils::MemPool &pool, bool align8 = false);
 
 #endif // MEMPOOL_HPP
