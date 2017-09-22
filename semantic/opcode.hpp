@@ -57,7 +57,10 @@ enum OpCode : uint32_t {
     OpRightShiftAssign, // >>=
 };
 
-OpCode toOpCode(Lexical::TokenType) noexcept;
+/**
+ * Convert TokenType to OpCode, for binary operator only
+ */
+OpCode toBinaryOpCode(Lexical::TokenType) noexcept;
 
 } // namespace Semantic
 } // namespace Compiler

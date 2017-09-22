@@ -5,10 +5,6 @@
 
 namespace Compiler {
 
-namespace Text {
-class UString;
-}
-
 namespace Semantic {
 
 class Type;
@@ -55,8 +51,6 @@ class QualType {
          * function returning type".
          */
         self decay() noexcept;
-        
-        Text::UString toString() const;
         
         explicit operator bool() const noexcept;
         bool operator==(const self &o) const noexcept;

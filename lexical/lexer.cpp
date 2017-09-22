@@ -4,8 +4,8 @@
 #include "lexical/tokentype.hpp"
 #include "lexical/token.hpp"
 #include "lexical/lexer.hpp"
+#include "diagnostic/logger.hpp"
 #include "diagnostic/sourceloc.hpp"
-#include "diagnostic/printer.hpp"
 
 #include <cassert>
 

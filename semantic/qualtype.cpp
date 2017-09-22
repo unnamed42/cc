@@ -93,12 +93,6 @@ QualType QualType::decay() noexcept {
     return {makePointerType(ptr), qual};
 }
 
-Text::UString QualType::toString() const {
-    auto str{get()->toString()};
-    str += ' ';
-    return str += ::toString(static_cast<Qualifier>(qual()));
-}
-
 QualType::operator bool() const noexcept {
     return get() != nullptr;
 }

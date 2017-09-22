@@ -9,11 +9,10 @@
 #include "semantic/opcode.hpp"
 #include "semantic/scope.hpp"
 #include "semantic/parser.hpp"
-#include "diagnostic/printer.hpp"
+#include "diagnostic/logger.hpp"
 #include "constexpr/evaluator.hpp"
 
 #include <cassert>
-#include <algorithm>
 
 namespace impl = Compiler::Semantic;
 
@@ -24,8 +23,24 @@ using namespace Compiler::Semantic;
 using namespace Compiler::ConstExpr;
 using namespace Compiler::Diagnostic;
 
-static unsigned precedence(Token *tok) noexcept {
-    switch(tok->type()) {
+/**
+ * RAII trick to declare new scope and auto exit
+ */
+struct ScopeGuard {
+    Scope* &curr;
+    Scope  new_;
+    Scope *save;
+    bool   done;
+    
+    ScopeGuard(Scope* &curr, ScopeType type = BlockScope) :
+        curr(curr), new_(type, curr), save(&new_), done(false) { std::swap(this->curr, save); }
+    ~ScopeGuard() noexcept { if(!done) std::swap(curr, save); }
+    
+    void release() noexcept { std::swap(save, curr); done = true; }
+};
+
+static unsigned precedence(TokenType type) noexcept {
+    switch(type) {
         case Star: case Div: case Mod: return 10;
         case Add: case Sub: return 9;
         case LeftShift: case RightShift: return 8;
@@ -41,33 +56,13 @@ static unsigned precedence(Token *tok) noexcept {
     }
 }
 
-static OpCode toOpCode(Token *tok) {
-    switch(tok->type()) {
-        case Star: return OpMul;
-        case Div: return OpDiv;
-        case Mod: return OpMod;
-        case Add: return OpAdd;
-        case Sub: return OpSub;
-        case LeftShift: return OpLeftShift;
-        case RightShift: return OpRightShift;
-        case LessThan: return OpLess;
-        case GreaterThan: return OpGreater;
-        case LessEqual: return OpLessEqual;
-        case GreaterEqual: return OpGreaterEqual;
-        case Equal: return OpEqual;
-        case NotEqual: return OpNotEqual;
-        case Ampersand: return OpBitAnd;
-        case BitXor: return OpBitXor;
-        case BitOr: return OpBitOr;
-        case LogicalAnd: return OpAnd;
-        case LogicalOr: return OpOr;
-        default: assert(false);
-    }
-}
-
 SourceLoc *impl::epos = nullptr;
 
-Parser::Parser(const char *path) : m_src(path), m_file(makeScope(FileScope)), m_curr(m_file) {}
+Parser::Parser(const char *path) : m_src(path), m_file(new Scope(FileScope)), m_curr(m_file) {}
+
+Parser::~Parser() noexcept { 
+    delete m_file; 
+}
 
 Token* Parser::get() {
     auto ret = m_src.get();
@@ -85,6 +80,17 @@ Token* Parser::peek() {
 
 void Parser::markPos(Token *tok) {
     epos = tok->sourceLoc();
+}
+
+void Parser::parse() {
+    ;
+}
+
+bool Parser::isSpecifier(Token *name) {
+    if(isTypeSpecifier(name->type()))
+        return true;
+    auto decl = m_curr->find(name);
+    return decl && decl->storageClass() == Typedef;
 }
 
 /*------------------------------.
@@ -336,21 +342,21 @@ Expr* Parser::binaryExpr() {
 
 Expr* Parser::binaryExpr(Expr *lhs, unsigned preced) {
     auto lop = get(); // operator on the left hand
-    auto lprec = precedence(lop); // its precedence
+    auto lprec = precedence(lop->type()); // its precedence
     // while lop is a binary operator and its precedence >= preced
     while(lprec && lprec >= preced) {
         auto rhs = castExpr();
         auto rop = peek(); // operator on the right hand
-        auto rprec = precedence(rop); // its precedence
+        auto rprec = precedence(rop->type()); // its precedence
         // while rop is a binary operator and it has a higher precedence
         while(rprec && rprec > lprec) {
             rhs = binaryExpr(rhs, rprec);
             rop = peek();
-            rprec = precedence(rop);
+            rprec = precedence(rop->type());
         }
-        lhs = makeBinary(lop, ::toOpCode(lop), lhs, rhs);
+        lhs = makeBinary(lop, toBinaryOpCode(lop->type()), lhs, rhs);
         lop = get();
-        lprec = precedence(lop);
+        lprec = precedence(lop->type());
     }
     m_src.unget(lop);
     return lhs;
@@ -481,7 +487,7 @@ StructType* Parser::structUnionSpecifier() {
             if(!prevTag) {
                 // declare it
                 type = makeStructType();
-                m_curr->declareTag(tok, type);
+                m_curr->declareTag(makeDecl(tok, type));
             } else {
                 type = prevTag->type()->toStruct();
                 if(!type)
@@ -504,7 +510,7 @@ StructType* Parser::structUnionSpecifier() {
                 prevTag = m_curr->findTag(tok);
             if(!prevTag || !prevTag->type()->toStruct()) {
                 type = makeStructType();
-                m_curr->declareTag(tok, type);
+                m_curr->declareTag(makeDecl(tok, type));
             } else 
                 type = prevTag->type()->toStruct();
         }
@@ -519,6 +525,7 @@ StructType* Parser::structUnionSpecifier() {
 }
 
 void Parser::structDeclList(PtrList &members) {
+    ScopeGuard guard{m_curr, BlockScope};
     while(isSpecifier(m_src.peek())) {
         auto type = typeSpecifier();
         do {
@@ -778,8 +785,9 @@ FuncType* Parser::paramTypeList(QualType ret) {
     QualType tp;
     Token *name;
     bool vaarg = false;
-    auto s = makeScope(ProtoScope, m_curr);
-    std::swap(s, m_curr);
+    
+    ScopeGuard guard{m_curr, ProtoScope};
+    
     do {
         if(m_src.test(Ellipsis)) {
             vaarg = true; 
@@ -802,9 +810,9 @@ FuncType* Parser::paramTypeList(QualType ret) {
             derr << m_src.peek()->sourceLoc()
                 << "parameter declaration with an incomplete type";
         // if name is nullptr means an abstract declarator
-        params.pushBack(m_curr->declare(name, tp, Auto));
+        params.pushBack(m_curr->declare(makeDecl(name, tp)));
     } while(m_src.test(Comma));
-    std::swap(s, m_curr);
+    
     m_src.expect(RightParen);
     return makeFuncType(ret, std::move(params), vaarg);
 }

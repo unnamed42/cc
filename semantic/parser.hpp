@@ -23,10 +23,6 @@ enum StorageClass : uint32_t;
 class Scope;
 
 class Expr;
-class CastExpr;
-class UnaryExpr;
-class BinaryExpr;
-class TernaryExpr;
 class ObjectExpr;
 class ConstantExpr;
 
@@ -47,6 +43,8 @@ class Parser {
         Scope      *m_curr;
     public:
         Parser(const char *path);
+        
+        ~Parser() noexcept;
         
         void parse();
     private:

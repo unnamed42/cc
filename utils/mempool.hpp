@@ -65,6 +65,8 @@ class MemPool {
         
         template <class T>
         inline void deallocate(T *mem) noexcept { deallocate(mem, sizeof(mem)); }
+        
+        void clear() noexcept;
 };
 
 extern MemPool pool;

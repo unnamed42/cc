@@ -1,5 +1,5 @@
 #include "text/ustring.hpp"
-#include "diagnostic/printer.hpp"
+#include "diagnostic/logger.hpp"
 #include "lexical/tokentype.hpp"
 #include "semantic/typeenum.hpp"
 
@@ -68,8 +68,29 @@ Specifier impl::toSpecifier(TokenType token) noexcept {
         case KeyComplex: return Complex;
         case KeyUnsigned: return Unsigned;
         case KeySigned: return Signed;
+        default: assert(false);
     }
-    assert(false);
+}
+
+Qualifier impl::toQualifier(TokenType token) noexcept {
+    switch(token) {
+        case KeyConst: return Const;
+        case KeyVolatile: return Volatile;
+        case KeyRestrict: return Restrict;
+        default: assert(false);
+    }
+}
+
+StorageClass impl::toStorageClass(TokenType token) noexcept {
+    switch(token) {
+        case KeyStatic: return Static;
+        case KeyAuto: return Auto;
+        case KeyRegister: return Register;
+        case KeyExtern: return Extern;
+        case KeyInline: return Inline;
+        case KeyTypedef: return Typedef;
+        default: assert(false);
+    }
 }
 
 const char* impl::toString(Qualifier qual) noexcept {
@@ -77,8 +98,8 @@ const char* impl::toString(Qualifier qual) noexcept {
         case Const: return "const";
         case Volatile: return "volatile";
         case Restrict: return "restrict";
+        default: assert(false);
     }
-    assert(false);
 }
 
 const char* impl::toString(Specifier type) noexcept {
@@ -95,35 +116,20 @@ const char* impl::toString(Specifier type) noexcept {
         case Complex: return "complex";
         case Unsigned: return "unsigned";
         case Signed: return "signed";
+        default: assert(false);
     }
-    assert(false);
 }
 
 const char* impl::toString(StorageClass stor) noexcept {
     switch(stor) {
+        case Auto: return "";
         case Typedef: return "typedef";
         case Static: return "static";
         case Inline: return "inline";
         case Register: return "register";
         case Extern: return "extern";
+        default: assert(false);
     }
-}
-
-UString impl::specifierToString(uint32_t spec) {
-    UString ret{};
-    uint32_t mask = 1;
-    bool space = false;
-    while(spec) {
-        if(spec & mask) {
-            spec ^= mask;
-            if(space) 
-                ret += ' ';
-            ret += toString(static_cast<Specifier>(mask));
-            space = true;
-        }
-        mask <<= 1;
-    }
-    return ret;
 }
 
 /* C99 6.7.3 Type qualifiers
@@ -135,7 +141,7 @@ UString impl::specifierToString(uint32_t spec) {
 uint32_t impl::addQualifier(uint32_t lhs, uint32_t rhs) noexcept {
     if(lhs & rhs) 
         dwarn << epos << "duplicate qualifier " 
-            << toString(static_cast<Qualifier>(rhs));
+            << static_cast<Qualifier>(rhs);
     return lhs |= rhs;
 }
 
@@ -148,9 +154,9 @@ uint32_t impl::addStorageClass(uint32_t lhs, uint32_t rhs) noexcept {
         0, // Extern
     };
     if(lhs & ~comp[offset(rhs)]) 
-        derr << epos 
-            << "cannot apply storage class specifier " << toString(static_cast<StorageClass>(rhs)) 
-            << " to previous one";
+        derr << epos << "cannot apply storage class specifier '" 
+            << Logger::storageClasses << rhs
+            << "' to '" << Logger::storageClasses << lhs << '\'';
     else if(rhs & Register) 
         derr << epos << "deprecated storage class specifier 'register', it will has no effect";
     return lhs |= rhs;
@@ -175,8 +181,8 @@ uint32_t impl::addSpecifier(uint32_t lhs, uint32_t rhs) noexcept {
     // incompatible two specifiers
     if(lhs & ~comp[offset(rhs)])
         derr << epos
-            << "cannot apply specifier "<< toString(static_cast<Specifier>(rhs))
-            << "to specifier sequence " << specifierToString(lhs);
+            << "cannot apply specifier '" << toString(static_cast<Specifier>(rhs))
+            << "' to specifier sequence '" << Logger::specifiers << lhs << '\'';
     
     if((lhs & Long) && (rhs & Long)) {
         lhs ^= Long;

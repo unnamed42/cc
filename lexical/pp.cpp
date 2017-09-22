@@ -3,7 +3,7 @@
 #include "lexical/pp.hpp"
 #include "lexical/token.hpp"
 #include "lexical/tokentype.hpp"
-#include "diagnostic/printer.hpp"
+#include "diagnostic/logger.hpp"
 
 using namespace Compiler::Utils;
 using namespace Compiler::Lexical;

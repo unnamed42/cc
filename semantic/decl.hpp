@@ -3,6 +3,7 @@
 
 #include "utils/ptrlist.hpp"
 #include "semantic/qualtype.hpp"
+#include "semantic/typeenum.hpp"
 
 namespace Compiler {
 
@@ -17,8 +18,6 @@ class Token;
 }
 
 namespace Semantic {
-
-enum StorageClass : uint32_t;
 
 class FuncDecl;
 
@@ -38,6 +37,7 @@ class Decl {
         const Text::UString& name() const noexcept;
         Diagnostic::SourceLoc* sourceLoc() noexcept;
         QualType type() noexcept;
+        StorageClass storageClass() const noexcept;
         
         virtual FuncDecl* toFunc() noexcept;
 };
@@ -53,7 +53,7 @@ class FuncDecl : public Decl {
         Utils::PtrList& params() noexcept;
 };
 
-Decl* makeDecl(Lexical::Token *name, QualType type, StorageClass stor);
+Decl* makeDecl(Lexical::Token *name, QualType type, StorageClass stor = Auto);
 
 } // namespace Semantic
 } // namespace Compiler

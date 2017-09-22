@@ -229,3 +229,7 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
     block->next = chunk->freeList;
     chunk->freeList = block;
 }
+
+void MemPool::clear() noexcept {
+    this->~MemPool();
+}

@@ -8,12 +8,15 @@ using namespace Compiler::Text;
 using namespace Compiler::Utils;
 using namespace Compiler::Lexical;
 using namespace Compiler::Semantic;
+using namespace Compiler::Diagnostic;
 
 Decl::Decl(Token *tok, QualType type, StorageClass stor) noexcept : m_tok(tok), m_type(type), m_stor(stor) {}
 FuncDecl* Decl::toFunc() noexcept { return nullptr; }
 Token* Decl::token() noexcept { return m_tok; }
+SourceLoc* Decl::sourceLoc() noexcept { return m_tok->sourceLoc(); }
 QualType Decl::type() noexcept { return m_type; }
 const UString& Decl::name() const noexcept { return *reinterpret_cast<ContentToken*>(m_tok)->content(); }
+StorageClass Decl::storageClass() const noexcept { return m_stor; }
 
 FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, PtrList &&params) noexcept 
     : Decl(tok, type, stor), m_params(static_cast<PtrList&&>(params)) {}

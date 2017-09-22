@@ -4,10 +4,6 @@
 #include <cstdint>
 
 namespace Compiler {
-
-namespace Text {
-class UString;
-}
     
 namespace Lexical {
 enum TokenType : uint32_t;
@@ -79,8 +75,6 @@ Qualifier    toQualifier(Lexical::TokenType) noexcept;
 const char* toString(Qualifier) noexcept;
 const char* toString(Specifier) noexcept;
 const char* toString(StorageClass) noexcept;
-
-Text::UString specifierToString(uint32_t);
 
 uint32_t sizeOf(uint32_t spec) noexcept;
 

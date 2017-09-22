@@ -1,6 +1,11 @@
 #ifndef SCOPE_HPP
 #define SCOPE_HPP
 
+#include "text/ustring.hpp"
+#include "semantic/typeenum.hpp"
+
+#include <unordered_map>
+
 namespace Compiler {
 
 namespace Lexical {
@@ -64,7 +69,16 @@ class Decl;
 class QualType;
 
 class Scope {
+    private:
+        using self = Scope;
+    private:
+        ScopeType m_type;
+        Scope    *m_par;
+        std::unordered_map<Text::UString, Decl*>
+                  m_table;
     public:
+        explicit Scope(ScopeType = BlockScope, Scope *parent = nullptr);
+        
         bool is(ScopeType) const noexcept;
         
         ScopeType type() const noexcept;
@@ -72,11 +86,12 @@ class Scope {
         Decl* find(Lexical::Token *name, bool recursive = true);
         Decl* findTag(Lexical::Token *name, bool recursive = true);
         
-        Decl* declare(Lexical::Token *name, QualType type, StorageClass stor);
-        Decl* declareTag(Lexical::Token *name, QualType type);
+        Decl* declare(Decl *decl);
+        Decl* declareTag(Decl *decl);
+    private:
+        Decl* find(const Text::UString &name, bool recursive = true);
+        Decl* declare(const Text::UString &name, Decl *decl);
 };
-
-Scope* makeScope(ScopeType type = BlockScope, Scope *parent = nullptr);
 
 } // namespace Semantic
 } // namespace Compiler

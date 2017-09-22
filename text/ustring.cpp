@@ -20,15 +20,11 @@ static inline void swap(T &a, T &b) {
     temp = a; a = b; b = temp;
 }
 
-UString UString::fromUnsigned(unsigned i) {
-    if(!i)
-        return "0";
-    UString ret{};
-    while(i) {
-        ret += static_cast<UChar>(i % 10 + '0');
-        i /= 10;
-    }
-    return ret;
+std::size_t std::hash<UString>::operator()(const UString &str) const {
+    std::size_t hash;
+    for(unsigned i : str)
+        hash = (hash + (324723947 + i)) ^ 93485734985;
+    return hash;
 }
 
 UString::UString(const char *source) : UString() {

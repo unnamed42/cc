@@ -8,8 +8,8 @@
 
 namespace Compiler {
 
-namespace Text {
-class UString;
+namespace Diagnostic {
+class Logger;
 }
 
 namespace Semantic {
@@ -57,7 +57,7 @@ class Type {
         virtual unsigned size()  const noexcept;
         virtual unsigned align() const noexcept;
         
-        virtual Text::UString toString() const = 0;
+        virtual void print(Diagnostic::Logger&) const = 0;
         
         virtual Type* clone();
 };
@@ -76,7 +76,7 @@ class VoidType : public Type {
         VoidType*       toVoid()       noexcept override;
         const VoidType* toVoid() const noexcept override;
         
-        Text::UString toString() const override;
+        void print(Diagnostic::Logger&) const override;
 };
 
 /* C99 6.2.5 Types
@@ -120,7 +120,7 @@ class NumberType : public Type {
         NumberType*       toNumber()       noexcept override;
         const NumberType* toNumber() const noexcept override;
         
-        Text::UString toString() const override;
+        void print(Diagnostic::Logger&) const override;
         
         unsigned size()  const noexcept override;
         unsigned align() const noexcept override;
@@ -258,7 +258,7 @@ class ArrayType : public DerivedType {
         ArrayType*       toArray()       noexcept override;
         const ArrayType* toArray() const noexcept override;
         
-        Text::UString toString() const override;
+        void print(Diagnostic::Logger&) const override;
         
         unsigned size() const noexcept override;
         
@@ -282,7 +282,7 @@ class PointerType : public DerivedType {
         PointerType*       toPointer()       noexcept override;
         const PointerType* toPointer() const noexcept override;
         
-        Text::UString toString() const override;
+        void print(Diagnostic::Logger&) const override;
         
         unsigned size()  const noexcept override;
         unsigned align() const noexcept override;
@@ -306,7 +306,7 @@ class StructType : public Type {
         unsigned size()  const noexcept override;
         unsigned align() const noexcept override;
         
-        Text::UString toString() const override;
+        void print(Diagnostic::Logger&) const override;
         
         Utils::PtrList& members() noexcept;
         void setMembers(Utils::PtrList *members);
@@ -316,7 +316,7 @@ class EnumType : public Type {};
 
 class FuncType : public DerivedType {
     private:
-        /**< list of decl* */
+        /**< list of Decl* */
         Utils::PtrList m_params;
         bool           m_vaarg;
     public:
@@ -327,7 +327,7 @@ class FuncType : public DerivedType {
         
         bool isCompatible(Type*) noexcept override;
         
-        Text::UString toString() const override;
+        void print(Diagnostic::Logger&) const override;
         
         QualType returnType() const noexcept;
         void setReturnType(QualType) noexcept;

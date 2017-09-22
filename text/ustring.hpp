@@ -14,8 +14,6 @@ class UString : public Utils::Vector<UChar> {
         using self = UString;
         using base = Utils::Vector<UChar>;
     public:
-        static UString fromUnsigned(unsigned i);
-    public:
         using base::base;
         UString(const char*);
         
@@ -39,5 +37,14 @@ class UString : public Utils::Vector<UChar> {
 
 } // namespace Text
 } // namespace Compiler
+
+namespace std {
+template <class T> struct hash;
+
+template <>
+struct hash<Compiler::Text::UString> {
+    std::size_t operator()(const Compiler::Text::UString&) const;
+};
+}
 
 #endif // USTRING_HPP

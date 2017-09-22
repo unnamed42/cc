@@ -1,6 +1,6 @@
 #include "utils/mempool.hpp"
 #include "constexpr/value.hpp"
-#include "diagnostic/printer.hpp"
+#include "diagnostic/logger.hpp"
 
 namespace impl = Compiler::ConstExpr;
 

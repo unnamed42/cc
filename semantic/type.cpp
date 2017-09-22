@@ -1,7 +1,7 @@
 #include "utils/mempool.hpp"
-#include "text/ustring.hpp"
 #include "semantic/type.hpp"
 #include "semantic/typeenum.hpp"
+#include "diagnostic/logger.hpp"
 
 #include <cassert>
 
@@ -10,6 +10,7 @@ namespace impl = Compiler::Semantic;
 using namespace Compiler::Text;
 using namespace Compiler::Utils;
 using namespace Compiler::Semantic;
+using namespace Compiler::Diagnostic;
 
 static NumberType* greater(NumberType *lhs, NumberType *rhs) {
     auto max = (lhs->rank() < rhs->rank()) ? rhs : lhs;
@@ -50,12 +51,12 @@ Type* Type::clone() { return this; }
 bool VoidType::isComplete() const noexcept { return false; }
 VoidType*       VoidType::toVoid()       noexcept { return this; }
 const VoidType* VoidType::toVoid() const noexcept { return this; }
-UString VoidType::toString() const { return "void"; }
+void VoidType::print(Logger &log) const { log << "void"; }
 
 NumberType::NumberType(uint32_t t) noexcept : type(t) {}
 NumberType*       NumberType::toNumber()       noexcept { return this; }
 const NumberType* NumberType::toNumber() const noexcept { return this; }
-UString NumberType::toString() const { return specifierToString(type); }
+void NumberType::print(Logger &log) const { log << Logger::specifiers << type; }
 unsigned NumberType::size() const noexcept { return sizeOf(type); }
 unsigned NumberType::align() const noexcept { return size(); }
 bool NumberType::isSigned()     const noexcept { return !isUnsigned(); }
@@ -97,19 +98,18 @@ bool ArrayType::isCompatible(Type *that) noexcept {
     auto p = that->toArray();
     return p && p->m_bound == m_bound && base()->isCompatible(p->base());
 }
-UString ArrayType::toString() const {
-    auto ret = base().toString();
-    ret += '[';
+void ArrayType::print(Logger &log) const {
+    log << base() << '[';
     if(isComplete())
-        ret += UString::fromUnsigned(m_bound);
-    return ret += ']';
+        log << m_bound;
+    log << ']';
 }
 
 PointerType::PointerType(QualType base) noexcept : DerivedType(base) {}
 PointerType::PointerType(Type *base, uint32_t qual) noexcept : PointerType(QualType{base, qual}) {}
 PointerType*       PointerType::toPointer()       noexcept { return this; }
 const PointerType* PointerType::toPointer() const noexcept { return this; }
-UString PointerType::toString() const { return base().toString() + '*'; }
+void PointerType::print(Logger &log) const { log << base() << '*'; }
 unsigned PointerType::size()  const noexcept { return SizePointer; }
 unsigned PointerType::align() const noexcept { return size(); }
 bool PointerType::isVoidPtr() const noexcept { return base()->toVoid(); }
@@ -125,9 +125,11 @@ bool StructType::isComplete() const noexcept { return m_members != nullptr; }
 bool StructType::isCompatible(Type *other) noexcept {}
 unsigned StructType::size()  const noexcept {}
 unsigned StructType::align() const noexcept {}
-UString StructType::toString() const {}
 PtrList& StructType::members() noexcept { return *m_members; }
 void StructType::setMembers(PtrList *members) { m_members = members; }
+void StructType::print(Logger &log) const {
+    
+}
 
 FuncType::FuncType(QualType ret, PtrList &&list, bool vaarg) noexcept 
     : DerivedType(ret), m_params(static_cast<PtrList&&>(list)), m_vaarg(vaarg) {}
@@ -139,6 +141,9 @@ bool FuncType::isVaArgs()       const noexcept { return m_vaarg; }
 void FuncType::setVaArgs(bool vaargs) noexcept { m_vaarg = vaargs; }
 PtrList& FuncType::params()                    noexcept { return m_params; }
 void     FuncType::setParams(PtrList &&params) noexcept { m_params = static_cast<PtrList&&>(params); }
+void FuncType::print(Logger &log) const {
+    
+}
 
 VoidType* impl::makeVoidType() {
     static VoidType *v = new (pool.align8Allocate(sizeof(VoidType))) VoidType{};

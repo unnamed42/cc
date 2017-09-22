@@ -22,7 +22,7 @@ set(TEXT_FILES
         text/stream.hpp text/stream.cpp)
 
 set(DIAGNOSTIC_FILES 
-        diagnostic/printer.hpp diagnostic/printer.cpp
+        diagnostic/logger.hpp diagnostic/logger.cpp
         diagnostic/sourceloc.hpp diagnostic/sourceloc.cpp)
 
 set(LEXICAL_FILES 

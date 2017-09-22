@@ -2,6 +2,27 @@
 
 namespace impl = Compiler::Lexical;
 
+using namespace Compiler::Lexical;
+
+#define BETWEEN(value, left, right) \
+    (left) <= (value) && (value) <= (right)
+
+bool impl::isAssignment(TokenType type) noexcept {
+    return BETWEEN(type, Assign, RightShiftAssign);
+} 
+
+bool impl::isStorageClass(TokenType type) noexcept {
+    return BETWEEN(type, KeyStatic, KeyTypedef);
+}
+
+bool impl::isTypeSpecifier(TokenType type) noexcept {
+    return BETWEEN(type, KeyBool, KeyVoid);
+}
+
+bool impl::isQualifier(TokenType type) noexcept {
+    return BETWEEN(type, KeyConst, KeyRestrict);
+}
+
 const char* impl::toString(TokenType type) noexcept {
     switch(type) {
         case Error: return "error";
