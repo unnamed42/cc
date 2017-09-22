@@ -32,6 +32,8 @@ class Token {
         TokenType type() noexcept;
         
         virtual void print(Diagnostic::Logger&) const;
+        
+        virtual const Text::UString* content() const noexcept;
 };
 
 class ContentToken : public Token {
@@ -41,7 +43,7 @@ class ContentToken : public Token {
         using Token::Token;
         ContentToken(Diagnostic::SourceLoc*, TokenType, Text::UString*);
         
-        const Text::UString* content() const noexcept;
+        const Text::UString* content() const noexcept override;
         
         void print(Diagnostic::Logger&) const override;
 };

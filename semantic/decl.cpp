@@ -1,4 +1,5 @@
 #include "utils/mempool.hpp"
+#include "text/ustring.hpp"
 #include "lexical/token.hpp"
 #include "semantic/decl.hpp"
 
@@ -15,7 +16,7 @@ FuncDecl* Decl::toFunc() noexcept { return nullptr; }
 Token* Decl::token() noexcept { return m_tok; }
 SourceLoc* Decl::sourceLoc() noexcept { return m_tok->sourceLoc(); }
 QualType Decl::type() noexcept { return m_type; }
-const UString& Decl::name() const noexcept { return *reinterpret_cast<ContentToken*>(m_tok)->content(); }
+const UString& Decl::name() const noexcept { return *m_tok->content(); }
 StorageClass Decl::storageClass() const noexcept { return m_stor; }
 
 FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, DeclList &&params) noexcept 

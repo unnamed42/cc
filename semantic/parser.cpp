@@ -149,9 +149,8 @@ Expr* Parser::postfixExpr() {
                 auto func = m_curr->find(resTok);
                 auto funcDecl = func ? func->toFunc() : nullptr;
                 if(!funcDecl)
-                    derr << resTok->sourceLoc()
-                        << "a function designator required";
-                result = makeCall(funcDecl, argumentExprList());
+                    derr << resTok->sourceLoc() << "a function designator required";
+                result = makeCall(tok, funcDecl, argumentExprList());
                 //m_src.expect(RightParen); // handled in args
                 break;
             }

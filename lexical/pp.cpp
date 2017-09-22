@@ -13,7 +13,7 @@ PP::PP(const char *path) : m_unget(), m_src(path) {}
 
 Token* PP::get() {
     if(!m_unget.empty())
-        return static_cast<Token*>(m_unget.popBack());
+        return m_unget.popBack();
     return m_src.get();
 }
 

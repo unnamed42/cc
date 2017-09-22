@@ -69,7 +69,7 @@ class Type {
  */
 class VoidType : public Type {
     public:
-        VoidType() = default;
+        VoidType() noexcept = default;
         
         bool isComplete() const noexcept override;
         

@@ -17,6 +17,9 @@ struct SourceLoc;
 namespace Lexical {
 class Token;
 }
+namespace ConstExpr {
+class Value;
+}
 
 namespace Semantic {
 
@@ -34,6 +37,8 @@ class Expr {
         Lexical::Token* token() noexcept;
         
         Diagnostic::SourceLoc* sourceLoc() noexcept;
+        
+        QualType type() const noexcept;
 };
 
 class UnaryExpr : public Expr {
@@ -70,26 +75,53 @@ class CastExpr : public Expr {
 
 class CallExpr : public Expr {
     private:
+        FuncDecl       *func;
+        Utils::ExprList args;
+    public:
+        CallExpr(FuncDecl *func, Utils::ExprList &&args) noexcept;
+};
+
+class ObjectExpr : public Expr {
+    private:
+        Decl *decl;
+    public:
         
 };
 
-class ObjectExpr : public Expr {};
+class ConstantExpr : public Expr {
+    private:
+        ConstExpr::Value *val;
+};
 
-class ConstantExpr : public Expr {};
+ConstantExpr* makeSizeOf(Lexical::Token *opSizeOf, Expr *expr);
+ConstantExpr* makeSizeOf(Lexical::Token *opSizeOf, Type *type);
 
 UnaryExpr*   makeUnary(Lexical::Token *tok, OpCode op, Expr *expr);
-UnaryExpr*   makeSizeOf(Lexical::Token *opSizeOf, Expr *expr);
-UnaryExpr*   makeSizeOf(Lexical::Token *opSizeOf, Type *type);
 
 CastExpr*    makeCast(Expr *from, QualType to);
 
 BinaryExpr*  makeBinary(Lexical::Token *tok, OpCode op, Expr *lhs, Expr *rhs);
+
+/**
+ * Make a member access expression.
+ * @param op token where . or -> is
+ * @param base base object
+ * @param member name of member
+ * @return constructed BinaryExpr object
+ */
 BinaryExpr*  makeMemberAccess(Lexical::Token *op, Expr *base, Lexical::Token *member);
 BinaryExpr*  makeAssignment(Lexical::Token *assignOp, Expr *lvalue, Expr *assignValue);
 
 TernaryExpr* makeTernary(Lexical::Token *tok, Expr *cond, Expr *yes, Expr *no);
 
-CallExpr*    makeCall(FuncDecl *func, Utils::ExprList&&);
+/**
+ * Construct a CallExpr object.
+ * @param tok token where left parenthese of function call expression
+ * @param func function designator
+ * @param args argument expression list
+ * @return constructed object
+ */
+CallExpr*    makeCall(Lexical::Token *tok, FuncDecl *func, Utils::ExprList &&args);
 } // namespace Semantic
 } // namespace Compiler
 
