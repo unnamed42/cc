@@ -46,7 +46,7 @@ class Vector {
             other.m_data = nullptr;
         }
         
-        ~Vector() { pool.deallocate(m_data); }
+        ~Vector() { pool.deallocate(m_data, m_cap * sizeof(ValueType)); }
         
         /**
          * Move stack allocated Vector object into heap memory.

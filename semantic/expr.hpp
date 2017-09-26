@@ -8,9 +8,6 @@
 
 namespace Compiler {
 
-namespace Utils {
-class PtrList;
-}
 namespace Diagnostic {
 struct SourceLoc;
 }
@@ -85,16 +82,29 @@ class ObjectExpr : public Expr {
     private:
         Decl *decl;
     public:
-        
+        ObjectExpr(Lexical::Token *tok, Decl*) noexcept;
 };
 
 class ConstantExpr : public Expr {
     private:
         ConstExpr::Value *val;
+    public:
+        ConstantExpr(Lexical::Token*, ConstExpr::Value*) noexcept;
 };
 
+ConstantExpr* makeString(Lexical::Token*);
+ConstantExpr* makeChar(Lexical::Token*);
+ConstantExpr* makeNumber(Lexical::Token*);
+ConstantExpr* makeBool(Lexical::Token*);
 ConstantExpr* makeSizeOf(Lexical::Token *opSizeOf, Expr *expr);
 ConstantExpr* makeSizeOf(Lexical::Token *opSizeOf, Type *type);
+
+/**
+ * Create a lvalue object.
+ * @param tok where the identifier is used
+ * @param decl where the identifier is declared
+ */
+ObjectExpr* makeObject(Lexical::Token *tok, Decl *decl);
 
 UnaryExpr*   makeUnary(Lexical::Token *tok, OpCode op, Expr *expr);
 

@@ -9,18 +9,22 @@ namespace Compiler {
 namespace Utils {
 
 /**
- * Allocate some bytes of memory.
+ * Custom memory allocator.
  *
  * The size of managed objects should be no more than 64 bytes.
  *
  * All objects requiring reallocation must be TriviallyCopyable.
  *
  * All objects allocated by this pool must be TriviallyDestructible,
- * or all resources requiring destruction are also allocated by this class.
+ * or all resources requiring destruction are also allocated using MemPool.
  * Otherwise, memory will leak.
  */
 class MemPool {
     NO_COPY_MOVE(MemPool);
+    public:
+        class AlignedTag;
+    public:
+        static AlignedTag aligned;
     private:
         void *m_chunks;
     public:
@@ -58,7 +62,7 @@ class MemPool {
         void deallocate(void *block, unsigned size) noexcept;
         
         template <class T>
-        inline void deallocate(T *mem) noexcept { deallocate(mem, sizeof(mem)); }
+        inline void deallocate(T *mem) noexcept { deallocate(mem, sizeof(T)); }
         
         void clear() noexcept;
 };
@@ -69,8 +73,11 @@ extern MemPool pool;
 } // namespace Compiler
 
 /**
- * Provied a placement new operator for MemPool
+ * Provide a placement new operator for MemPool
  */
-void* operator new(std::size_t size, Compiler::Utils::MemPool &pool, bool align8 = false);
+void* operator new(std::size_t size, Compiler::Utils::MemPool &pool);
+void* operator new(std::size_t size, Compiler::Utils::MemPool &pool, const Compiler::Utils::MemPool::AlignedTag &);
+
+void operator delete(void *mem, std::size_t size, Compiler::Utils::MemPool &pool) noexcept;
 
 #endif // MEMPOOL_HPP

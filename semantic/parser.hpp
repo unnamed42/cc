@@ -55,11 +55,7 @@ class Parser {
         
         bool isSpecifier(Lexical::Token*);
         
-        ObjectExpr*   makeIdentifier(Lexical::Token*);
-        ConstantExpr* makeString(Lexical::Token*);
-        ConstantExpr* makeChar(Lexical::Token*);
-        ConstantExpr* makeNumber(Lexical::Token*);
-        ConstantExpr* makeBool(Lexical::Token*);
+        ObjectExpr* makeIdentifier(Lexical::Token*);
         
         Expr* primaryExpr();
         Expr* postfixExpr();

@@ -89,11 +89,9 @@ UChar UChar::makeInvalid() noexcept {
     return {INVALID};
 }
 
-UChar::UChar(ValueType ch) noexcept : 
-m_ch(ch) {}
+UChar::UChar(ValueType ch) noexcept : m_ch(ch) {}
 
-UChar::UChar(const UChar &other) noexcept : 
-m_ch(other.m_ch) {}
+UChar::UChar(const UChar &other) noexcept : m_ch(other.m_ch) {}
 
 UChar::UChar(File *file) : m_ch(fromFile(*file)) {}
 

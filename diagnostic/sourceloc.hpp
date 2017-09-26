@@ -23,11 +23,14 @@ struct SourceLoc {
     /**< length of this source content, used only in diagnostics */
     unsigned length;
     
-    SourceLoc() = default;
-    SourceLoc(const char *path, FILE *file);
+    SourceLoc() noexcept = default;
+    SourceLoc(const char *path, FILE *file) noexcept;
+    
+    /**
+     * Make a clone of this object
+     */
+    SourceLoc* clone() const;
 };
-
-SourceLoc* makeSourceLoc(const SourceLoc *source);
 
 } // namespace Diagnostic
 } // namespace Compiler

@@ -67,6 +67,7 @@ Token* Parser::get() {
     auto ret = m_src.get();
     if(!ret)
         derr << "unexpected end of file";
+    markPos(ret);
     return ret;
 }
 
@@ -90,6 +91,14 @@ bool Parser::isSpecifier(Token *name) {
         return true;
     auto decl = m_curr->find(name);
     return decl && decl->storageClass() == Typedef;
+}
+
+ObjectExpr* Parser::makeIdentifier(Token *name) {
+    auto decl = m_curr->find(name);
+    if(!decl)
+        derr << name->sourceLoc() 
+            << "use of undeclared indentifier '" << name << '\'';
+    return makeObject(name, decl);
 }
 
 /*------------------------------.
@@ -138,7 +147,6 @@ Expr* Parser::postfixExpr() {
     auto result = primaryExpr();
     for(;;) {
         auto tok = get();
-        markPos(tok);
         switch(tok->type()) {
             case LeftSubscript:
                 result = makeBinary(tok, OpSubscript, result, expr());
@@ -396,7 +404,6 @@ QualType Parser::typeSpecifier(StorageClass *stor) {
     }
     
     for(;;tok = get()) {
-        markPos(tok); // for error message printing
         tokType = tok->type();
         switch(tokType) {
             case KeyConst: case KeyVolatile: case KeyRestrict:
@@ -580,7 +587,6 @@ QualType Parser::pointer(QualType base) {
     // the first token is ensured to be '*'
     for(;;) {
         auto tok = get();
-        markPos(tok);
         if(isQualifier(tok->type()))
             base.addQual(toQualifier(tok->type()));
         else if(tok->is(Star))
@@ -643,11 +649,9 @@ QualType Parser::arrayFuncDeclarator(QualType base) {
              * a function type or an array type.
              */
             if(base->toArray() || base->toFunc()) 
-                derr << tok->sourceLoc()
-                    << "invalid function return type";
+                derr << tok->sourceLoc() << "invalid function return type";
             if(!m_curr->is(FileScope) && !m_curr->is(ProtoScope))
-                derr << tok->sourceLoc()
-                    << "functions can not be declared here";
+                derr << tok->sourceLoc() << "functions can not be declared here";
             base = paramTypeList(base); // RightParen handled here
         } else {
             m_src.unget(tok);
@@ -680,8 +684,7 @@ QualType Parser::abstractDeclarator(QualType base) {
     tryDeclarator(base, name);
     if(name) 
         // warning is better?
-        derr << name->sourceLoc()
-            << "unexpected identifier";
+        derr << name->sourceLoc() << "unexpected identifier";
     return base;
 }
 
@@ -705,8 +708,7 @@ Decl* Parser::declarator(StorageClass stor, QualType base) {
     Token *name;
     tryDeclarator(base, name);
     if(!name)
-        derr << m_src.peek()->sourceLoc()
-            << "expecting an identifier";
+        derr << m_src.peek()->sourceLoc() << "expecting an identifier";
     return makeDecl(name, base, stor);
 }
 
@@ -802,13 +804,11 @@ FuncType* Parser::paramTypeList(QualType ret) {
         if(!name && tp->toVoid() && params.empty()) {
             auto tok = m_src.peek();
             if(!tok->is(RightParen))
-                derr << tok->sourceLoc()
-                    << "'void' must be the only parameter";
+                derr << tok->sourceLoc() << "'void' must be the only parameter";
             break;
         } 
         if(!tp->isComplete())
-            derr << m_src.peek()->sourceLoc()
-                << "parameter declaration with an incomplete type";
+            derr << m_src.peek()->sourceLoc() << "parameter declaration with an incomplete type";
         // if name is nullptr means an abstract declarator
         params.pushBack(m_curr->declare(makeDecl(name, tp)));
     } while(m_src.test(Comma));

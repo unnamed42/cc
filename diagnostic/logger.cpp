@@ -16,12 +16,12 @@ using namespace Compiler::Lexical;
 using namespace Compiler::Semantic;
 using namespace Compiler::Diagnostic;
 
-static void defaultIntegerPrinter(uint32_t i) {
+static void defaultIntegerPrinter(uint32_t i) noexcept {
     fprintf(stderr, "%u", i);
 }
 
 template <class Enum>
-static void enumPrinter(uint32_t spec) {
+static void enumPrinter(uint32_t spec) noexcept {
     uint32_t mask = 1;
     bool space = false;
     while(spec) {
@@ -29,7 +29,7 @@ static void enumPrinter(uint32_t spec) {
             spec ^= mask;
             if(space) 
                 fputc(' ', stderr);
-            fprintf(stderr, "%s", toString(static_cast<Enum>(mask)));
+            fputs(toString(static_cast<Enum>(mask)), stderr);
             space = true;
         }
         mask <<= 1;
@@ -40,11 +40,12 @@ Logger::IntegerPrinter Logger::specifiers{ &enumPrinter<Specifier> };
 Logger::IntegerPrinter Logger::storageClasses{ &enumPrinter<StorageClass> };
 Logger::IntegerPrinter Logger::qualifiers{ &enumPrinter<Qualifier> };
 
-Logger::Logger(DiagnoseFlag flag) : m_printer(&defaultIntegerPrinter) {
+Logger::Logger(DiagnoseFlag flag) noexcept : m_printer(&defaultIntegerPrinter) {
     this->operator<<(flag);
 }
 
 Logger::~Logger() noexcept(false) {
+    fputc('\n', stderr);
     if(m_mode == DIAGNOSTIC_ERROR)
         throw 0; // TODO: better exception object
 }
@@ -54,7 +55,7 @@ Logger& Logger::operator<<(IntegerPrinter printer) noexcept {
     return *this;
 }
 
-Logger& Logger::operator<<(DiagnoseFlag flag) {
+Logger& Logger::operator<<(DiagnoseFlag flag) noexcept {
     m_mode = flag;
     switch(flag) {
         case DIAGNOSTIC_ERROR:
@@ -65,7 +66,7 @@ Logger& Logger::operator<<(DiagnoseFlag flag) {
     return *this;
 }
 
-Logger& Logger::operator<<(const SourceLoc *loc) {
+Logger& Logger::operator<<(const SourceLoc *loc) noexcept {
     auto beg = loc->lineBegin;
     auto col = loc->column;
     auto len = loc->length;
@@ -96,32 +97,32 @@ Logger& Logger::operator<<(const SourceLoc *loc) {
     return *this;
 }
 
-Logger& Logger::operator<<(const SourceLoc &loc) {
+Logger& Logger::operator<<(const SourceLoc &loc) noexcept {
     return operator<<(&loc);
 }
 
-Logger& Logger::operator<<(char c) {
+Logger& Logger::operator<<(char c) noexcept {
     fputc(c, stderr);
     return *this;
 }
 
-Logger& Logger::operator<<(int i) {
+Logger& Logger::operator<<(int i) noexcept {
     fprintf(stderr, "%d", i);
     return *this;
 }
 
-Logger& Logger::operator<<(const char *str) {
-    fprintf(stderr, "%s", str);
+Logger& Logger::operator<<(const char *str) noexcept {
+    fputs(str, stderr);
     return *this;
 }
 
-Logger& Logger::operator<<(uint32_t i) {
+Logger& Logger::operator<<(uint32_t i) noexcept {
     m_printer(i);
     m_printer = &defaultIntegerPrinter;
     return *this;
 }
 
-Logger& Logger::operator<<(const UChar &uc) {
+Logger& Logger::operator<<(const UChar &uc) noexcept {
     UChar::ValueType val = uc;
     if(!val)
         return *this;
@@ -135,38 +136,41 @@ Logger& Logger::operator<<(const UChar &uc) {
     return *this;
 }
 
-Logger& Logger::operator<<(const UString &us) {
+Logger& Logger::operator<<(const UString &us) noexcept {
     for(auto &&uc : us) 
         operator<<(uc);
     return *this;
 }
 
-Logger& Logger::operator<<(QualType qt) {
-    return *this << qt.get() << ' ' << qualifiers << qt.qual();
+Logger& Logger::operator<<(QualType qt) noexcept {
+    operator<<(qt.get());
+    if(qt.qual())
+        *this << ' ' << qualifiers << qt.qual();
+    return *this;
 }
 
-Logger& Logger::operator<<(Type *type) {
+Logger& Logger::operator<<(Type *type) noexcept {
     type->print(*this);
     return *this;
 }
 
-Logger& Logger::operator<<(Token *tok) {
+Logger& Logger::operator<<(Token *tok) noexcept {
     tok->print(*this);
     return *this;
 }
 
-Logger& Logger::operator<<(TokenType tokType) {
-    return *this << toString(tokType);
+Logger& Logger::operator<<(TokenType tokType) noexcept {
+    return operator<<(toString(tokType));
 }
 
-Logger& Logger::operator<<(Specifier spec) {
-    return *this << toString(spec);
+Logger& Logger::operator<<(Specifier spec) noexcept {
+    return operator<<(toString(spec));
 }
 
-Logger& Logger::operator<<(Qualifier qual) {
-    return *this << toString(qual);
+Logger& Logger::operator<<(Qualifier qual) noexcept {
+    return operator<<(toString(qual));
 }
 
-Logger& Logger::operator<<(StorageClass stor) {
-    return *this << toString(stor);
+Logger& Logger::operator<<(StorageClass stor) noexcept {
+    return operator<<(toString(stor));
 }

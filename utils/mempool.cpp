@@ -147,6 +147,10 @@ static void* arbitarySizedBlock(PoolBlock *owner, unsigned blockSize) {
 
 MemPool impl::pool{};
 
+class MemPool::AlignedTag {};
+
+MemPool::AlignedTag MemPool::aligned{};
+
 MemPool::MemPool() {
     auto chunks = NEW(PoolBlock, (SIZES + 1) * sizeof(PoolBlock));
     m_chunks = chunks;
@@ -234,6 +238,14 @@ void MemPool::clear() noexcept {
     this->~MemPool();
 }
 
-void* operator new(std::size_t size, MemPool &pool, bool align8) {
-    return align8 ? pool.align8Allocate(size) : pool.allocate(size);
+void* operator new(std::size_t size, MemPool &pool) {
+    return pool.allocate(size);
+}
+
+void* operator new(std::size_t size, MemPool &pool, const MemPool::AlignedTag &) {
+    return pool.align8Allocate(size);
+}
+
+void operator delete(void* mem, std::size_t size, Compiler::Utils::MemPool& pool) noexcept {
+    pool.deallocate(mem, size);
 }

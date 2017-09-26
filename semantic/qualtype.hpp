@@ -57,8 +57,6 @@ class QualType {
         bool operator!=(const self &o) const noexcept;
 };
 
-extern const QualType QualNull;
-
 } // namespace Semantic
 } // namespace Compiler
 

@@ -39,6 +39,8 @@ class Decl {
         QualType type() noexcept;
         StorageClass storageClass() const noexcept;
         
+        bool isType() const noexcept;
+        
         virtual FuncDecl* toFunc() noexcept;
 };
 

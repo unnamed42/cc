@@ -6,14 +6,25 @@
 #include "semantic/type.hpp"
 #include "semantic/opcode.hpp"
 #include "semantic/qualtype.hpp"
+#include "constexpr/value.hpp"
 #include "diagnostic/logger.hpp"
 
 namespace impl = Compiler::Semantic;
 
+using namespace Compiler::Text;
 using namespace Compiler::Utils;
 using namespace Compiler::Lexical;
 using namespace Compiler::Semantic;
+using namespace Compiler::ConstExpr;
 using namespace Compiler::Diagnostic;
+
+static long parseAsNumber(const UString &str) {
+    return 0;
+}
+
+static double parseAsDouble(const UString &str) {
+    return .0;
+}
 
 static Expr* tryCast(Expr *expr, QualType destType) {
     auto srcType = expr->type();
@@ -69,6 +80,34 @@ BinaryExpr::BinaryExpr(Token *tok, OpCode op, Expr *lhs, Expr *rhs) noexcept
 
 TernaryExpr::TernaryExpr(Token *tok, Expr *cond, Expr *yes, Expr *no) noexcept
     : Expr(tok), cond(cond), yes(yes), no(no) {}
+
+ConstantExpr::ConstantExpr(Token *tok, Value *val) noexcept 
+    : Expr(tok), val(val) {}
+
+ConstantExpr* impl::makeBool(Token *tok) {
+    auto val = new (pool) IntegerValue(tok->sourceLoc(), tok->is(KeyTrue));
+    return new (pool) ConstantExpr(tok, val);
+}
+
+ConstantExpr* impl::makeNumber(Token *tok) {
+    auto &&str = *tok->content();
+    Value *val;
+    if(tok->is(PPFloat))
+        val = new (pool) DoubleValue(tok->sourceLoc(), parseAsDouble(str));
+    else
+        val = new (pool) IntegerValue(tok->sourceLoc(), parseAsNumber(str));
+    return new (pool) ConstantExpr(tok, val);
+}
+
+ConstantExpr* impl::makeString(Token *tok) {
+    auto val = new (pool) StringValue(tok->sourceLoc(), *tok->content());
+    return new (pool) ConstantExpr(tok, val);
+}
+
+ConstantExpr* impl::makeChar(Token *tok) {
+    auto val = new (pool) CharValue(tok->sourceLoc(), tok->content()->front());
+    return new (pool) ConstantExpr(tok, val);
+}
 
 UnaryExpr* impl::makeUnary(Token *tok, OpCode op, Expr *expr) {
     return new (pool) UnaryExpr(tok, op, expr);
@@ -129,7 +168,7 @@ CallExpr* impl::makeCall(Token *tok, FuncDecl *func, Utils::ExprList &&args) {
         derr << tok->sourceLoc() 
             << "apply operator() to invalid type " << func->type();
     
-    auto &params = func->params();
+    auto &&params = func->params();
     
     auto param = params.begin(), paramEnd = params.end();
     auto arg = args.begin(), argEnd = args.end();

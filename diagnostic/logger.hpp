@@ -52,31 +52,31 @@ class Logger {
         DiagnoseFlag   m_mode;
         IntegerPrinter m_printer;
     public:
-        explicit Logger(DiagnoseFlag flag = DIAGNOSTIC_WARNING);
+        explicit Logger(DiagnoseFlag flag = DIAGNOSTIC_WARNING) noexcept;
         ~Logger() noexcept(false);
         
         self& operator<<(IntegerPrinter) noexcept;
-        self& operator<<(uint32_t);
+        self& operator<<(uint32_t) noexcept;
         
-        self& operator<<(char);
-        self& operator<<(int);
-        self& operator<<(const char*);
-        self& operator<<(const SourceLoc*);
-        self& operator<<(const SourceLoc&);
-        self& operator<<(DiagnoseFlag);
+        self& operator<<(char) noexcept;
+        self& operator<<(int) noexcept;
+        self& operator<<(const char*) noexcept;
+        self& operator<<(const SourceLoc*) noexcept;
+        self& operator<<(const SourceLoc&) noexcept;
+        self& operator<<(DiagnoseFlag) noexcept;
         
-        self& operator<<(const Text::UChar &u);
-        self& operator<<(const Text::UString &s);
+        self& operator<<(const Text::UChar &u) noexcept;
+        self& operator<<(const Text::UString &s) noexcept;
         
-        self& operator<<(Lexical::Token*);
-        self& operator<<(Lexical::TokenType);
+        self& operator<<(Lexical::Token*) noexcept;
+        self& operator<<(Lexical::TokenType) noexcept;
         
-        self& operator<<(Semantic::Specifier);
-        self& operator<<(Semantic::Qualifier);
-        self& operator<<(Semantic::StorageClass);
+        self& operator<<(Semantic::Specifier) noexcept;
+        self& operator<<(Semantic::Qualifier) noexcept;
+        self& operator<<(Semantic::StorageClass) noexcept;
         
-        self& operator<<(Semantic::Type*);
-        self& operator<<(Semantic::QualType);
+        self& operator<<(Semantic::Type*) noexcept;
+        self& operator<<(Semantic::QualType) noexcept;
 };
 
 } // namespace Diagnostic

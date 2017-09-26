@@ -13,6 +13,8 @@ using namespace Compiler::Utils;
 using namespace Compiler::Semantic;
 using namespace Compiler::Diagnostic;
 
+#define MAKE_TYPE(typename, ...) new (pool, MemPool::aligned) typename(__VA_ARGS__)
+
 static NumberType* greater(NumberType *lhs, NumberType *rhs) {
     auto max = (lhs->rank() < rhs->rank()) ? rhs : lhs;
     if(max->isFloat())
@@ -123,9 +125,54 @@ StructType::StructType(DeclList *list) noexcept : m_members(list) {}
 StructType*       StructType::toStruct()       noexcept { return this; }
 const StructType* StructType::toStruct() const noexcept { return this; }
 bool StructType::isComplete() const noexcept { return m_members != nullptr; }
-bool StructType::isCompatible(Type *other) noexcept {}
-unsigned StructType::size()  const noexcept {}
-unsigned StructType::align() const noexcept {}
+/* C99 6.2.7 Compatible type and composite type
+ * 
+ * Moreover, two structure, union, or enumerated types declared in separate translation units 
+ * are compatible if their tags and members satisfy the following requirements: 
+ * 
+ *   If one is declared with a tag, the other shall be declared with the same tag. 
+ * 
+ *   If both are complete types, then the following additional requirements apply:
+ * 
+ *     there shall be a one-to-one correspondence between their members such that 
+ *     each pair of corresponding members are declared with compatible types, and such that 
+ *     if one member of a corresponding pair is declared with a name, the other member 
+ *     is declared with the same name. For two structures, corresponding members 
+ *     shall be declared in the same order. For two structures or unions, corresponding
+ *     bit-fields shall have the same widths. For two enumerations, corresponding members
+ *     shall have the same values.
+ */
+// FIXME: the rule gets looser by not requiring the same tag name
+bool StructType::isCompatible(Type *other) noexcept {
+    auto ptr = other->toStruct();
+    if(!ptr)
+        return false;
+    if(!isComplete() && !ptr->isComplete())
+        return this == ptr;
+    if(isComplete() != ptr->isComplete())
+        return false;
+    
+    auto &&otherMembers = ptr->members();
+    auto otherMember = otherMembers.begin();
+    auto otherEnd = otherMembers.end();
+    for(auto &&member : *m_members) {
+        if(otherMember == otherEnd)
+            return false;
+        // different name is allowed?
+        if(member->type()->isCompatible((*otherMember)->type()))
+            return false;
+    }
+    return true;
+}
+unsigned StructType::size()  const noexcept {
+    unsigned ret = 0;
+    if(!isComplete()) 
+        return ret;
+    for(auto member : *m_members)
+        ret += member->type()->size();
+    return ret;
+}
+unsigned StructType::align() const noexcept { return size(); }
 DeclList& StructType::members() noexcept { return *m_members; }
 void StructType::setMembers(DeclList *members) { m_members = members; }
 void StructType::print(Logger &log) const {
@@ -148,7 +195,29 @@ bool FuncType::isVaArgs()       const noexcept { return m_vaarg; }
 void FuncType::setVaArgs(bool vaargs) noexcept { m_vaarg = vaargs; }
 DeclList& FuncType::params()                    noexcept { return m_params; }
 void     FuncType::setParams(DeclList &&params) noexcept { m_params = move(params); }
-bool FuncType::isCompatible(Type *other) noexcept {}
+bool FuncType::isCompatible(Type *other) noexcept {
+    if(this == other)
+        return true;
+    auto otherFunc = other->toFunc();
+    if(!otherFunc) 
+        return false;
+    
+    if(!returnType()->isCompatible(otherFunc->returnType()) || isVaArgs() != otherFunc->isVaArgs())
+        return false;
+    auto &&params = this->params();
+    auto &&otherParams = otherFunc->params();
+    if(params.size() == 0) // an unspecified parameter list matches any list
+        return true;
+    if(params.size() != otherParams.size())
+        return false;
+    
+    auto otherParam = otherParams.begin();
+    for(auto &&param : params) {
+        if(!param->type()->isCompatible((*otherParam)->type()))
+            return false;
+    }
+    return true;
+}
 void FuncType::print(Logger &log) const {
     log << returnType() << '(';
     bool first = true;
@@ -168,13 +237,12 @@ void FuncType::print(Logger &log) const {
 }
 
 VoidType* impl::makeVoidType() {
-    static VoidType *v = new (pool, true) VoidType{};
+    static VoidType *v = MAKE_TYPE(VoidType);
     return v;
 }
 
 NumberType* impl::makeNumberType(uint32_t spec) {
-    #define PLACEMENT_NEW(typecode) new (pool, true) NumberType(typecode)
-    #define DECLARE_NUMBER_TYPE(name, typecode) static auto name = PLACEMENT_NEW(typecode)
+    #define DECLARE_NUMBER_TYPE(name, typecode) static auto name = MAKE_TYPE(NumberType, typecode)
     
     DECLARE_NUMBER_TYPE(boolt, Bool);
     DECLARE_NUMBER_TYPE(chart, Char);
@@ -193,7 +261,6 @@ NumberType* impl::makeNumberType(uint32_t spec) {
     DECLARE_NUMBER_TYPE(ldoublet, Long|Double);
     
     #undef DECLARE_NUMBER_TYPE
-    #undef PLACEMENT_NEW
     
     switch(spec) {
         case Bool: return boolt;
@@ -228,21 +295,21 @@ NumberType* impl::makeNumberType(uint32_t spec) {
 }
 
 PointerType* impl::makePointerType(QualType base) {
-    return new (pool) PointerType(base);
+    return MAKE_TYPE(PointerType, base);
 }
 
 PointerType* impl::makePointerType(Type *type, uint32_t qual) {
-    return new (pool) PointerType(type, qual);
+    return MAKE_TYPE(PointerType, type, qual);
 }
 
 ArrayType* impl::makeArrayType(QualType base, int bound) {
-    return new (pool) ArrayType(base, bound);
+    return MAKE_TYPE(ArrayType, base, bound);
 }
 
 StructType* impl::makeStructType(DeclList *members) {
-    return new (pool) StructType(members);
+    return MAKE_TYPE(StructType, members);
 }
 
 FuncType* impl::makeFuncType(QualType ret, DeclList &&list, bool vaarg) {
-    return new (pool) FuncType(ret, move(list), vaarg);
+    return MAKE_TYPE(FuncType, ret, move(list), vaarg);
 }

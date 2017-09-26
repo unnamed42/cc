@@ -29,14 +29,14 @@ Lexer::Lexer(const char *path) : m_src(path), m_pos(1) {}
 
 Token* Lexer::makeToken(TokenType type) {
     // TODO: location fix
-    auto loc = makeSourceLoc(&m_src.sourceLoc());
+    auto loc = m_src.sourceLoc().clone();
     loc->length = m_src.pos() - m_pos;
     loc->column -= loc->length;
     return ::makeToken(loc, type);
 }
 
 Token* Lexer::makeToken(TokenType type, UString &content) {
-    auto loc = makeSourceLoc(&m_src.sourceLoc());
+    auto loc = m_src.sourceLoc().clone();
     loc->length = m_src.pos() - m_pos;
     loc->column -= loc->length;
     return ::makeToken(loc, type, reinterpret_cast<UString*>(content.toHeap()));
