@@ -211,7 +211,7 @@ void* MemPool::align8Allocate(unsigned size) {
 void* MemPool::reallocate(void *current, unsigned oldSize, unsigned newSize) {
     if(oldSize >= newSize || sizeOf(oldSize) == sizeOf(newSize))
         return current;
-    if(indexOf(oldSize) == MAX_SIZE) 
+    if(indexOf(oldSize) == SIZES) 
         return managedRealloc(current, newSize);
     
     auto ret = memcpy(allocate(newSize), current, oldSize);
