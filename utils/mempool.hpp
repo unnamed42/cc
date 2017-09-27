@@ -64,6 +64,9 @@ class MemPool {
         template <class T>
         inline void deallocate(T *mem) noexcept { deallocate(mem, sizeof(T)); }
         
+        /**
+         * Free all managed memory resouces.
+         */
         void clear() noexcept;
 };
 

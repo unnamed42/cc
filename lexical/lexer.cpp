@@ -39,7 +39,7 @@ Token* Lexer::makeToken(TokenType type, UString &content) {
     auto loc = m_src.sourceLoc().clone();
     loc->length = m_src.pos() - m_pos;
     loc->column -= loc->length;
-    return ::makeToken(loc, type, reinterpret_cast<UString*>(content.toHeap()));
+    return ::makeToken(loc, type, content.toHeap());
 }
 
 void Lexer::logPos() {
@@ -54,8 +54,8 @@ Token* Lexer::expect(TokenType type) {
     auto ret = get();
     if(!ret->is(type)) {
         derr << ret->sourceLoc()
-            << "expecting '" << toString(type) << "', but get '"
-            << toString(ret->type()) << '\'';
+            << "expecting '" << type << "', but get '"
+            << ret->type() << '\'';
     }
     return ret;
 }

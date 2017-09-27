@@ -17,6 +17,8 @@ class UString : public Utils::Vector<UChar> {
         using base::base;
         UString(const char*);
         
+        UString* toHeap();
+        
         self& append(char ch);
         self& append(UChar ch);
         self& append(const char *str);

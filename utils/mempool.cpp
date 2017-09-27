@@ -1,12 +1,10 @@
 #include "utils/mempool.hpp"
 
+#include <new>
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-
-#define NEW(type, size) \
-    static_cast<type*>(malloc(size))
 
 #define MOVE_BYTES(base, offset) \
     reinterpret_cast<decltype(base)>(reinterpret_cast<uint8_t*>(base) + offset)
@@ -26,18 +24,16 @@ struct ListBlock {
     ListBlock *next;
 };
 
+/**
+ * StandardLayout and layout-compatible with ListBlock,
+ * and both have a next field which are semantically equal.
+ * so DoubleLinkedBlock* can be safely casted to ListBlock*,
+ * so we do not need a freeList(DoubleLinkedBlock*) version
+ */
 struct DoubleLinkedBlock {
-    ListBlock          block; // mimic inheritance
+    DoubleLinkedBlock *next;
     DoubleLinkedBlock *prev;
     uint8_t data[0];
-    
-    inline DoubleLinkedBlock* next() noexcept {
-        return reinterpret_cast<DoubleLinkedBlock*>(block.next);
-    }
-    
-    inline void setNext(void *next) noexcept {
-        block.next = static_cast<ListBlock*>(next);
-    }
 };
 
 struct PoolBlock {
@@ -47,11 +43,30 @@ struct PoolBlock {
     ListBlock *chunk;
 };
 
+template <class T>
+static inline T* managedMalloc(std::size_t additional = 0) noexcept(false) {
+    auto ret = malloc(additional + sizeof(T));
+    if(!ret)
+        throw std::bad_alloc{};
+    return static_cast<T*>(ret);
+}
+
+static inline void* managedRealloc(void *src, std::size_t newsize) noexcept(false) {
+    auto ret = realloc(src, newsize);
+    if(!ret)
+        throw std::bad_alloc{};
+    return ret;
+}
+
+static inline void managedFree(void *mem) noexcept {
+    free(mem);
+}
+
 /**
- * See if lowest 3 bit of pointer address is 0
+ * See if lowest 3 bit of pointer address is not 0
  * @param ptr pointer address
  */
-static inline bool lowest3bitClear(void *ptr) noexcept {
+static inline bool lowest3bitSet(void *ptr) noexcept {
     return (reinterpret_cast<uintptr_t>(ptr) & 7);
 }
 
@@ -61,9 +76,10 @@ static inline bool lowest3bitClear(void *ptr) noexcept {
  * @return aligned address
  */
 static inline void* align8Pointer(void *ptr) noexcept {
-    if(lowest3bitClear(ptr)) {
-        reinterpret_cast<uintptr_t&>(ptr) &= ~7;
-        reinterpret_cast<uintptr_t&>(ptr) += 8;
+    if(lowest3bitSet(ptr)) {
+        auto &&uintptr = reinterpret_cast<uintptr_t&>(ptr);
+        uintptr &= ~7U;
+        uintptr += 8;
     }
     return ptr;
 }
@@ -88,14 +104,6 @@ static inline unsigned indexOf(unsigned size) noexcept {
     return size < MAX_SIZE ? ((size + 7) >> 3) - 1 : SIZES;
 }
 
-static inline void freeList(ListBlock *head) noexcept {
-    while(head) {
-        auto save = head->next;
-        free(head);
-        head = save;
-    }
-}
-
 static inline PoolBlock* chunkAt(void *base, unsigned index) noexcept {
     return static_cast<PoolBlock*>(base) + index;
 }
@@ -108,7 +116,7 @@ static inline PoolBlock* chunkAt(void *base, unsigned index) noexcept {
  */
 static ListBlock* addChunk(PoolBlock *owner, unsigned blockSize) {
     auto count = BLOCK_SIZE / blockSize;
-    auto chunk = NEW(ListBlock, BLOCK_SIZE + sizeof(ListBlock));
+    auto chunk = managedMalloc<ListBlock>(BLOCK_SIZE);
     
     auto mem = chunk + 1;
     while(count--) {
@@ -133,12 +141,12 @@ static ListBlock* addChunk(PoolBlock *owner, unsigned blockSize) {
  * @return available memory of this memory block
  */
 static void* arbitarySizedBlock(PoolBlock *owner, unsigned blockSize) {
-    auto block = NEW(DoubleLinkedBlock, sizeof(DoubleLinkedBlock) + blockSize);
+    auto block = managedMalloc<DoubleLinkedBlock>(blockSize);
     
     auto first = reinterpret_cast<DoubleLinkedBlock*>(owner->chunk);
     if(first)
         first->prev = block;
-    block->setNext(first);
+    block->next = first;
     block->prev = nullptr;
     
     owner->chunk = reinterpret_cast<ListBlock*>(block);
@@ -152,8 +160,7 @@ class MemPool::AlignedTag {};
 MemPool::AlignedTag MemPool::aligned{};
 
 MemPool::MemPool() {
-    auto chunks = NEW(PoolBlock, (SIZES + 1) * sizeof(PoolBlock));
-    m_chunks = chunks;
+    auto chunks = managedMalloc<PoolBlock>(SIZES * sizeof(PoolBlock));
     for(auto i=0; i<SIZES+1; ++i) {
         chunks[i].chunk = nullptr;
         chunks[i].freeList = nullptr;
@@ -161,10 +168,8 @@ MemPool::MemPool() {
 }
 
 MemPool::~MemPool() noexcept {
-    auto chunks = reinterpret_cast<PoolBlock*>(m_chunks);
-    for(auto i=0; i<SIZES; ++i) 
-        freeList(chunks[i].chunk);
-    free(m_chunks);
+    clear();
+    managedFree(m_chunks);
 }
 
 void* MemPool::allocate(unsigned size) {
@@ -189,7 +194,7 @@ void* MemPool::align8Allocate(unsigned size) {
     auto chunk = chunkAt(m_chunks, index);
     ListBlock *first = chunk->freeList, *prev = nullptr;
     while(first) {
-        if(lowest3bitClear(first)) {
+        if(lowest3bitSet(first)) {
             if(!prev)
                 chunk->freeList = first->next;
             else
@@ -204,8 +209,11 @@ void* MemPool::align8Allocate(unsigned size) {
 }
 
 void* MemPool::reallocate(void *current, unsigned oldSize, unsigned newSize) {
-    if(oldSize >= newSize)
+    if(oldSize >= newSize || sizeOf(oldSize) == sizeOf(newSize))
         return current;
+    if(indexOf(oldSize) == MAX_SIZE) 
+        return managedRealloc(current, newSize);
+    
     auto ret = memcpy(allocate(newSize), current, oldSize);
     deallocate(current, oldSize);
     return ret;
@@ -220,12 +228,12 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
     if(index == SIZES) {
         auto block = CONTAINER_OF(DoubleLinkedBlock, data, mem);
         auto prev = block->prev;
-        auto next = block->next();
+        auto next = block->next;
         if(prev)
-            prev->setNext(next);
+            prev->next = next;
         if(next)
             next->prev = prev;
-        free(block);
+        managedFree(block);
         return;
     }
     
@@ -235,7 +243,17 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
 }
 
 void MemPool::clear() noexcept {
-    this->~MemPool();
+    auto chunks = static_cast<PoolBlock*>(m_chunks);
+    for(auto i=0; i<SIZES; ++i, ++chunks) {
+        auto head = chunks->chunk;
+        while(head) {
+            auto save = head->next;
+            managedFree(head);
+            head = save;
+        }
+        chunks->chunk = nullptr;
+        chunks->freeList = nullptr;
+    }
 }
 
 void* operator new(std::size_t size, MemPool &pool) {

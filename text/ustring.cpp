@@ -31,6 +31,10 @@ UString::UString(const char *source) : UString() {
     append(source);
 }
 
+UString* UString::toHeap() {
+    return static_cast<UString*>(base::toHeap());
+}
+
 UString& UString::append(char ch) {
     pushBack(UChar(ch));
     return *this;
