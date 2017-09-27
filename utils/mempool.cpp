@@ -26,14 +26,34 @@ struct ListBlock {
 
 /**
  * StandardLayout and layout-compatible with ListBlock,
- * and both have a next field which are semantically equal.
- * so DoubleLinkedBlock* can be safely casted to ListBlock*,
- * so we do not need a freeList(DoubleLinkedBlock*) version
+ * and both have a next field that are semantically equal.
+ * So DualLinkedBlock* can be safely casted to ListBlock*,
+ * and can share a same deallcation function.
  */
-struct DoubleLinkedBlock {
-    DoubleLinkedBlock *next;
-    DoubleLinkedBlock *prev;
-    uint8_t data[0];
+struct DualLinkedBlock {
+    DualLinkedBlock *next;
+    DualLinkedBlock *prev;
+    uint8_t          data[0];
+    
+    /**
+     * Fix pointer linkage after reallocation.
+     */
+    inline void fixLinkage() noexcept {
+        if(prev)
+            prev->next = this;
+        if(next)
+            next->prev = this;
+    }
+    
+    /**
+     * Remove this block from a doubly-linked list
+     */
+    inline void removeThis() noexcept {
+        if(prev)
+            prev->next = next;
+        if(next)
+            next->prev = prev;
+    }
 };
 
 struct PoolBlock {
@@ -51,11 +71,12 @@ static inline T* managedMalloc(std::size_t additional = 0) noexcept(false) {
     return static_cast<T*>(ret);
 }
 
-static inline void* managedRealloc(void *src, std::size_t newsize) noexcept(false) {
-    auto ret = realloc(src, newsize);
+template <class T>
+static inline T* managedRealloc(T *src, std::size_t newsize) noexcept(false) {
+    auto ret = realloc(src, newsize + sizeof(T));
     if(!ret)
         throw std::bad_alloc{};
-    return ret;
+    return static_cast<T*>(ret);
 }
 
 static inline void managedFree(void *mem) noexcept {
@@ -141,9 +162,9 @@ static ListBlock* addChunk(PoolBlock *owner, unsigned blockSize) {
  * @return available memory of this memory block
  */
 static void* arbitarySizedBlock(PoolBlock *owner, unsigned blockSize) {
-    auto block = managedMalloc<DoubleLinkedBlock>(blockSize);
+    auto block = managedMalloc<DualLinkedBlock>(blockSize);
     
-    auto first = reinterpret_cast<DoubleLinkedBlock*>(owner->chunk);
+    auto first = reinterpret_cast<DualLinkedBlock *>(owner->chunk);
     if(first)
         first->prev = block;
     block->next = first;
@@ -194,7 +215,7 @@ void* MemPool::align8Allocate(unsigned size) {
     auto chunk = chunkAt(m_chunks, index);
     ListBlock *first = chunk->freeList, *prev = nullptr;
     while(first) {
-        if(lowest3bitSet(first)) {
+        if(!lowest3bitSet(first)) {
             if(!prev)
                 chunk->freeList = first->next;
             else
@@ -211,9 +232,12 @@ void* MemPool::align8Allocate(unsigned size) {
 void* MemPool::reallocate(void *current, unsigned oldSize, unsigned newSize) {
     if(oldSize >= newSize || sizeOf(oldSize) == sizeOf(newSize))
         return current;
-    if(indexOf(oldSize) == SIZES) 
-        return managedRealloc(current, newSize);
-    
+    if(indexOf(oldSize) == SIZES) {
+        auto block = CONTAINER_OF(DualLinkedBlock, data, current);
+        auto newblock = managedRealloc(block, newSize);
+        newblock->fixLinkage();
+        return newblock->data;
+    }
     auto ret = memcpy(allocate(newSize), current, oldSize);
     deallocate(current, oldSize);
     return ret;
@@ -226,13 +250,8 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
     auto chunk = chunkAt(m_chunks, index);
     
     if(index == SIZES) {
-        auto block = CONTAINER_OF(DoubleLinkedBlock, data, mem);
-        auto prev = block->prev;
-        auto next = block->next;
-        if(prev)
-            prev->next = next;
-        if(next)
-            next->prev = prev;
+        auto block = CONTAINER_OF(DualLinkedBlock, data, mem);
+        block->removeThis();
         managedFree(block);
         return;
     }
