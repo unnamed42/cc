@@ -97,10 +97,6 @@ Logger& Logger::operator<<(const SourceLoc *loc) noexcept {
     return *this;
 }
 
-Logger& Logger::operator<<(const SourceLoc &loc) noexcept {
-    return operator<<(&loc);
-}
-
 Logger& Logger::operator<<(char c) noexcept {
     fputc(c, stderr);
     return *this;

@@ -37,19 +37,13 @@ class Parser {
     NO_COPY_MOVE(Parser);
     private:
         Lexical::PP m_src;
-        /**< file scope */
-        Scope      *m_file;
         /**< current scope */
         Scope      *m_curr;
     public:
         Parser(const char *path);
         
-        ~Parser() noexcept;
-        
         void parse();
     private:
-        void markPos(Lexical::Token*);
-        
         Lexical::Token* get();
         Lexical::Token* peek();
         
@@ -114,9 +108,9 @@ class Parser {
         
         QualType abstractDeclarator(QualType base);
         QualType directAbstractDeclarator(QualType);
+        
+        void translationUnit();
 };
-
-extern Diagnostic::SourceLoc *epos;
 
 } // namespace Semantic
 } // namespace Compiler

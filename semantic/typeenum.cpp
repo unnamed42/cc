@@ -1,22 +1,12 @@
-#include "text/ustring.hpp"
+#include "lexical/token.hpp"
 #include "diagnostic/logger.hpp"
 #include "lexical/tokentype.hpp"
 #include "semantic/typeenum.hpp"
 
 #include <cassert>
 
-namespace Compiler {
-namespace Diagnostic {
-struct SourceLoc;
-}
-namespace Semantic {
-extern Diagnostic::SourceLoc *epos;
-}
-}
-
 namespace impl = Compiler::Semantic;
 
-using namespace Compiler::Text;
 using namespace Compiler::Lexical;
 using namespace Compiler::Semantic;
 using namespace Compiler::Diagnostic;
@@ -55,8 +45,8 @@ uint32_t impl::sizeOf(uint32_t spec) noexcept {
     assert(false);
 }
 
-Specifier impl::toSpecifier(TokenType token) noexcept {
-    switch(token) {
+Specifier impl::toSpecifier(Token *tok) noexcept {
+    switch(tok->type()) {
         case KeyVoid: return Void;
         case KeyBool: return Bool;
         case KeyChar: return Char;
@@ -72,8 +62,8 @@ Specifier impl::toSpecifier(TokenType token) noexcept {
     }
 }
 
-Qualifier impl::toQualifier(TokenType token) noexcept {
-    switch(token) {
+Qualifier impl::toQualifier(Token *tok) noexcept {
+    switch(tok->type()) {
         case KeyConst: return Const;
         case KeyVolatile: return Volatile;
         case KeyRestrict: return Restrict;
@@ -81,8 +71,8 @@ Qualifier impl::toQualifier(TokenType token) noexcept {
     }
 }
 
-StorageClass impl::toStorageClass(TokenType token) noexcept {
-    switch(token) {
+StorageClass impl::toStorageClass(Token *tok) noexcept {
+    switch(tok->type()) {
         case KeyStatic: return Static;
         case KeyAuto: return Auto;
         case KeyRegister: return Register;
@@ -138,14 +128,14 @@ const char* impl::toString(StorageClass stor) noexcept {
  * directly or via one or more typedefs, the behavior is the same as if it appeared only
  * once.
  */
-uint32_t impl::addQualifier(uint32_t lhs, uint32_t rhs) noexcept {
+uint32_t impl::addQualifier(uint32_t lhs, Token *rhsTok) noexcept {
+    auto rhs = toQualifier(rhsTok);
     if(lhs & rhs) 
-        dwarn << epos << "duplicate qualifier " 
-            << static_cast<Qualifier>(rhs);
+        dwarn << rhsTok->sourceLoc() << "duplicate qualifier " << static_cast<Qualifier>(rhs);
     return lhs |= rhs;
 }
 
-uint32_t impl::addStorageClass(uint32_t lhs, uint32_t rhs) noexcept {
+uint32_t impl::addStorageClass(uint32_t lhs, Token *rhsTok) noexcept {
     static constexpr uint32_t comp[] = { // Compatibility mask
         0, // Typedef
         Inline, // Static
@@ -153,16 +143,17 @@ uint32_t impl::addStorageClass(uint32_t lhs, uint32_t rhs) noexcept {
         0, // Register
         0, // Extern
     };
+    auto rhs = toStorageClass(rhsTok);
     if(lhs & ~comp[offset(rhs)]) 
-        derr << epos << "cannot apply storage class specifier '" 
-            << Logger::storageClasses << rhs
+        derr << rhsTok->sourceLoc() << "cannot apply storage class specifier '" 
+            << static_cast<StorageClass>(rhs)
             << "' to '" << Logger::storageClasses << lhs << '\'';
     else if(rhs & Register) 
-        derr << epos << "deprecated storage class specifier 'register', it will has no effect";
+        derr << rhsTok->sourceLoc() << "deprecated storage class specifier 'register', it will has no effect";
     return lhs |= rhs;
 }
 
-uint32_t impl::addSpecifier(uint32_t lhs, uint32_t rhs) noexcept {
+uint32_t impl::addSpecifier(uint32_t lhs, Token *rhsTok) noexcept {
     static constexpr uint32_t comp[12] = { // Compatibility masks
         0, // Void
         0, // Bool
@@ -177,11 +168,11 @@ uint32_t impl::addSpecifier(uint32_t lhs, uint32_t rhs) noexcept {
         Char | Short | Int | Long | LLong, // Unsigned 
         Char | Short | Int | Long | LLong, // Signed
     };
-    
+    auto rhs = toSpecifier(rhsTok);
     // incompatible two specifiers
     if(lhs & ~comp[offset(rhs)])
-        derr << epos
-            << "cannot apply specifier '" << toString(static_cast<Specifier>(rhs))
+        derr << rhsTok->sourceLoc()
+            << "cannot apply specifier '" << static_cast<Specifier>(rhs)
             << "' to specifier sequence '" << Logger::specifiers << lhs << '\'';
     
     if((lhs & Long) && (rhs & Long)) {

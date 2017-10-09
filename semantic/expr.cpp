@@ -68,9 +68,10 @@ static Expr* tryCast(Expr *expr, QualType destType) {
     return makeCast(expr, destType);
 }
 
-Expr::Expr(Token *tok) noexcept : tok(tok) {}
-Token* Expr::token() noexcept { return tok; }
-SourceLoc* Expr::sourceLoc() noexcept { return tok->sourceLoc(); }
+Expr::Expr(Token *tok) noexcept : 
+m_tok(tok) {}
+Token* Expr::token() noexcept { return m_tok; }
+SourceLoc* Expr::sourceLoc() noexcept { return m_tok->sourceLoc(); }
 
 UnaryExpr::UnaryExpr(Token *tok, OpCode op, Expr *expr) noexcept 
     : Expr(tok), op(op), expr(expr) {}

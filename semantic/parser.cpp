@@ -55,19 +55,12 @@ static unsigned precedence(TokenType type) noexcept {
     }
 }
 
-SourceLoc *impl::epos = nullptr;
-
-Parser::Parser(const char *path) : m_src(path), m_file(new Scope(FileScope)), m_curr(m_file) {}
-
-Parser::~Parser() noexcept { 
-    delete m_file; 
-}
+Parser::Parser(const char *path) : m_src(path), m_curr(nullptr) {}
 
 Token* Parser::get() {
     auto ret = m_src.get();
     if(!ret)
         derr << "unexpected end of file";
-    markPos(ret);
     return ret;
 }
 
@@ -76,10 +69,6 @@ Token* Parser::peek() {
     if(!ret)
         derr << "unexpected end of file";
     return ret;
-}
-
-void Parser::markPos(Token *tok) {
-    epos = tok->sourceLoc();
 }
 
 void Parser::parse() {
@@ -155,7 +144,7 @@ Expr* Parser::postfixExpr() {
             case LeftParen: {
                 auto resTok = result->token();
                 auto func = m_curr->find(resTok);
-                auto funcDecl = func ? func->toFunc() : nullptr;
+                auto funcDecl = func ? func->toFuncDecl() : nullptr;
                 if(!funcDecl)
                     derr << resTok->sourceLoc() << "a function designator required";
                 result = makeCall(tok, funcDecl, argumentExprList());
@@ -399,7 +388,7 @@ QualType Parser::typeSpecifier(StorageClass *stor) {
             derr << tok->sourceLoc() 
                 << "unexpected storage class specifier " << tokType;
         
-        *stor = toStorageClass(tokType);
+        *stor = toStorageClass(tok);
         tok = get();
     }
     
@@ -407,12 +396,12 @@ QualType Parser::typeSpecifier(StorageClass *stor) {
         tokType = tok->type();
         switch(tokType) {
             case KeyConst: case KeyVolatile: case KeyRestrict:
-                qual = addQualifier(qual, toQualifier(tokType));
+                qual = addQualifier(qual, tok);
                 break;
             case KeyVoid: case KeyChar: case KeyShort:
             case KeyInt: case KeyLong: case KeyFloat:
             case KeyDouble: case KeySigned: case KeyUnsigned:
-                spec = addSpecifier(spec, toSpecifier(tokType));
+                spec = addSpecifier(spec, tok);
                 break;
             case KeyStruct: case KeyUnion: 
                 ret.setBase(structUnionSpecifier());
@@ -588,7 +577,7 @@ QualType Parser::pointer(QualType base) {
     for(;;) {
         auto tok = get();
         if(isQualifier(tok->type()))
-            base.addQual(toQualifier(tok->type()));
+            base.addQual(toQualifier(tok));
         else if(tok->is(Star))
             base = QualType{makePointerType(base)};
         else {
@@ -797,7 +786,6 @@ FuncType* Parser::paramTypeList(QualType ret) {
         }
         // no storage class expected
         tp = typeSpecifier();
-        markPos(m_src.peek());
         tryDeclarator(tp, name);
         tp = tp.decay();
         // a function with empty parameter list
@@ -817,3 +805,6 @@ FuncType* Parser::paramTypeList(QualType ret) {
     return makeFuncType(ret, std::move(params), vaarg);
 }
 
+void Parser::translationUnit() {
+    ScopeGuard guard{m_curr, FileScope};
+}

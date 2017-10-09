@@ -12,7 +12,7 @@ using namespace Compiler::Semantic;
 using namespace Compiler::Diagnostic;
 
 Decl::Decl(Token *tok, QualType type, StorageClass stor) noexcept : m_tok(tok), m_type(type), m_stor(stor) {}
-FuncDecl* Decl::toFunc() noexcept { return nullptr; }
+FuncDecl* Decl::toFuncDecl() noexcept { return nullptr; }
 Token* Decl::token() noexcept { return m_tok; }
 SourceLoc* Decl::sourceLoc() noexcept { return m_tok->sourceLoc(); }
 QualType Decl::type() noexcept { return m_type; }
@@ -22,7 +22,7 @@ bool Decl::isType() const noexcept { return m_stor == Typedef; }
 
 FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, DeclList &&params) noexcept 
     : Decl(tok, type, stor), m_params(move(params)) {}
-FuncDecl* FuncDecl::toFunc() noexcept { return this; }
+FuncDecl* FuncDecl::toFuncDecl() noexcept { return this; }
 DeclList& FuncDecl::params() noexcept { return m_params; }
 
 Decl* impl::makeDecl(Token *tok, QualType type, StorageClass stor) {

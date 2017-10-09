@@ -22,11 +22,14 @@ namespace Semantic {
 
 enum OpCode : uint32_t;
 
+class Type;
+
 class FuncDecl;
 
 class Expr {
     private:
-        Lexical::Token *tok;
+        Lexical::Token *m_tok;
+        Type           *m_type;
     public:
         Expr(Lexical::Token *) noexcept;
         virtual ~Expr() = default;

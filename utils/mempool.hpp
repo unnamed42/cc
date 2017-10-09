@@ -23,10 +23,12 @@ class MemPool {
     NO_COPY_MOVE(MemPool);
     public:
         class AlignedTag;
+        struct PoolBlock;
     public:
         static AlignedTag aligned;
     private:
-        void *m_chunks;
+        /**< array of fixed size of PoolBlock */
+        PoolBlock *m_chunks;
     public:
         MemPool();
         

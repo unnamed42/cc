@@ -41,7 +41,7 @@ class Decl {
         
         bool isType() const noexcept;
         
-        virtual FuncDecl* toFunc() noexcept;
+        virtual FuncDecl* toFuncDecl() noexcept;
 };
 
 class FuncDecl : public Decl {
@@ -50,7 +50,7 @@ class FuncDecl : public Decl {
     public:
         FuncDecl(Lexical::Token*, QualType, StorageClass stor, Utils::DeclList&&) noexcept;
         
-        FuncDecl* toFunc() noexcept override;
+        FuncDecl* toFuncDecl() noexcept override;
         
         Utils::DeclList& params() noexcept;
 };

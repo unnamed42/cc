@@ -62,7 +62,6 @@ class Logger {
         self& operator<<(int) noexcept;
         self& operator<<(const char*) noexcept;
         self& operator<<(const SourceLoc*) noexcept;
-        self& operator<<(const SourceLoc&) noexcept;
         self& operator<<(DiagnoseFlag) noexcept;
         
         self& operator<<(const Text::UChar &u) noexcept;

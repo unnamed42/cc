@@ -4,9 +4,9 @@
 #include <cstdint>
 
 namespace Compiler {
-    
+
 namespace Lexical {
-enum TokenType : uint32_t;
+class Token;
 }
 
 namespace Semantic {
@@ -68,9 +68,9 @@ enum TypeSize : uint32_t {
     SizePointer = 4,
 };
 
-Specifier    toSpecifier(Lexical::TokenType) noexcept;
-StorageClass toStorageClass(Lexical::TokenType) noexcept;
-Qualifier    toQualifier(Lexical::TokenType) noexcept;
+Specifier    toSpecifier(Lexical::Token*) noexcept;
+StorageClass toStorageClass(Lexical::Token*) noexcept;
+Qualifier    toQualifier(Lexical::Token*) noexcept;
 
 const char* toString(Qualifier) noexcept;
 const char* toString(Specifier) noexcept;
@@ -78,9 +78,9 @@ const char* toString(StorageClass) noexcept;
 
 uint32_t sizeOf(uint32_t spec) noexcept;
 
-uint32_t addQualifier(uint32_t lhs, uint32_t rhs) noexcept;
-uint32_t addStorageClass(uint32_t lhs, uint32_t rhs) noexcept;
-uint32_t addSpecifier(uint32_t lhs, uint32_t rhs) noexcept;
+uint32_t addQualifier(uint32_t lhs, Lexical::Token *rhsTok) noexcept;
+uint32_t addStorageClass(uint32_t lhs, Lexical::Token *rhsTok) noexcept;
+uint32_t addSpecifier(uint32_t lhs, Lexical::Token *rhsTok) noexcept;
 
 } // namespace Semantic
 } // namespace Compiler

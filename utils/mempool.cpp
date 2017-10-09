@@ -20,49 +20,6 @@ static constexpr auto BLOCK_SIZE = 1 << 12; // 4KB
 static constexpr auto SIZES = 8; // difference size of memory, 8, 16, 24, 32, 40, 48, 56, 64
 static constexpr auto MAX_SIZE = 8 * SIZES;
 
-struct ListBlock {
-    ListBlock *next;
-};
-
-/**
- * StandardLayout and layout-compatible with ListBlock,
- * and both have a next field that are semantically equal.
- * So DualLinkedBlock* can be safely casted to ListBlock*,
- * and can share a same deallcation function.
- */
-struct DualLinkedBlock {
-    DualLinkedBlock *next;
-    DualLinkedBlock *prev;
-    uint8_t          data[0];
-    
-    /**
-     * Fix pointer linkage after reallocation.
-     */
-    inline void fixLinkage() noexcept {
-        if(prev)
-            prev->next = this;
-        if(next)
-            next->prev = this;
-    }
-    
-    /**
-     * Remove this block from a doubly-linked list
-     */
-    inline void removeThis() noexcept {
-        if(prev)
-            prev->next = next;
-        if(next)
-            next->prev = prev;
-    }
-};
-
-struct PoolBlock {
-    /**< first node of free list */
-    ListBlock *freeList;
-    /**< points to first node of chunk list */
-    ListBlock *chunk;
-};
-
 template <class T>
 static inline T* managedMalloc(std::size_t additional = 0) noexcept(false) {
     auto ret = malloc(additional + sizeof(T));
@@ -82,6 +39,69 @@ static inline T* managedRealloc(T *src, std::size_t newsize) noexcept(false) {
 static inline void managedFree(void *mem) noexcept {
     free(mem);
 }
+
+/**
+ * Used as node in a singly-linked list that describes a free-list
+ * for unallocated blocks whose size is no more than MAX_SIZE in MemPool. 
+ * When allocation, pop a node in free-list and node itself is also considered
+ * as available memory space. That's why deallocation requires size.
+ */
+struct ListBlock {
+    ListBlock *next;
+};
+
+/**
+ * Used as node in a doubly-linked list linking across blocks of arbitary size.
+ * 
+ * Have a ListBlock as first member so DLinkedBlock* can be casted to 
+ * ListBlock*, and can share a same deallcation function.
+ */
+struct DLinkedBlock {
+    ListBlock     m_next;
+    DLinkedBlock *prev;
+    uint8_t       data[0];
+    
+    inline DLinkedBlock*& next() noexcept {
+        return reinterpret_cast<DLinkedBlock*&>(m_next.next);
+    }
+    
+    /**
+     * Fix pointer linkage after reallocation.
+     */
+    inline void fixLinkage() noexcept {
+        if(prev)
+            prev->next() = this;
+        auto next = this->next();
+        if(next)
+            next->prev = this;
+    }
+    
+    /**
+     * Remove this block from a doubly-linked list
+     */
+    inline void removeThis() noexcept {
+        auto next = this->next();
+        if(prev)
+            prev->next() = next;
+        if(next)
+            next->prev = prev;
+    }
+};
+
+/**
+ * Controller of MemPool, each has two singly-linked list:
+ * - One list maintains free list of fixed size memory block
+ * - One list maintains all pre-allocated large chunks
+ * When deallocation, just deallcate chunk list.
+ */
+struct MemPool::PoolBlock {
+    /**< first node of free list */
+    ListBlock *freeList;
+    /**< points to first node of chunk list */
+    ListBlock *chunk;
+};
+
+class MemPool::AlignedTag {};
 
 /**
  * See if lowest 3 bit of pointer address is not 0
@@ -125,17 +145,13 @@ static inline unsigned indexOf(unsigned size) noexcept {
     return size < MAX_SIZE ? ((size + 7) >> 3) - 1 : SIZES;
 }
 
-static inline PoolBlock* chunkAt(void *base, unsigned index) noexcept {
-    return static_cast<PoolBlock*>(base) + index;
-}
-
 /**
  * Allocate a memory block used as chunk, then attach to a PoolBlock
  * @param owner owner of this chunk
  * @param blockSize size of small block
  * @return first available memory block of this new chunk
  */
-static ListBlock* addChunk(PoolBlock *owner, unsigned blockSize) {
+static ListBlock* addChunk(MemPool::PoolBlock *owner, unsigned blockSize) {
     auto count = BLOCK_SIZE / blockSize;
     auto chunk = managedMalloc<ListBlock>(BLOCK_SIZE);
     
@@ -161,13 +177,13 @@ static ListBlock* addChunk(PoolBlock *owner, unsigned blockSize) {
  * @param blockSize size of this memory
  * @return available memory of this memory block
  */
-static void* arbitarySizedBlock(PoolBlock *owner, unsigned blockSize) {
-    auto block = managedMalloc<DualLinkedBlock>(blockSize);
+static void* arbitarySizedBlock(MemPool::PoolBlock *owner, unsigned blockSize) {
+    auto block = managedMalloc<DLinkedBlock>(blockSize);
     
-    auto first = reinterpret_cast<DualLinkedBlock *>(owner->chunk);
+    auto first = reinterpret_cast<DLinkedBlock*>(owner->chunk);
     if(first)
         first->prev = block;
-    block->next = first;
+    block->next() = first;
     block->prev = nullptr;
     
     owner->chunk = reinterpret_cast<ListBlock*>(block);
@@ -176,15 +192,14 @@ static void* arbitarySizedBlock(PoolBlock *owner, unsigned blockSize) {
 
 MemPool impl::pool{};
 
-class MemPool::AlignedTag {};
-
 MemPool::AlignedTag MemPool::aligned{};
 
 MemPool::MemPool() {
     auto chunks = managedMalloc<PoolBlock>(SIZES * sizeof(PoolBlock));
-    for(auto i=0; i<SIZES+1; ++i) {
-        chunks[i].chunk = nullptr;
-        chunks[i].freeList = nullptr;
+    m_chunks = chunks;
+    for(auto i=0; i<=SIZES; ++i, ++chunks) {
+        chunks->chunk = nullptr;
+        chunks->freeList = nullptr;
     }
 }
 
@@ -195,7 +210,7 @@ MemPool::~MemPool() noexcept {
 
 void* MemPool::allocate(unsigned size) {
     auto index = indexOf(size);
-    auto chunk = chunkAt(m_chunks, index);
+    auto chunk = m_chunks + index;
     
     if(index == SIZES) 
         return arbitarySizedBlock(chunk, size);
@@ -212,7 +227,7 @@ void* MemPool::align8Allocate(unsigned size) {
     auto index = indexOf(size);
     assert(index < SIZES);
     
-    auto chunk = chunkAt(m_chunks, index);
+    auto chunk = m_chunks + index;
     ListBlock *first = chunk->freeList, *prev = nullptr;
     while(first) {
         if(!lowest3bitSet(first)) {
@@ -233,7 +248,7 @@ void* MemPool::reallocate(void *current, unsigned oldSize, unsigned newSize) {
     if(oldSize >= newSize || sizeOf(oldSize) == sizeOf(newSize))
         return current;
     if(indexOf(oldSize) == SIZES) {
-        auto block = CONTAINER_OF(DualLinkedBlock, data, current);
+        auto block = CONTAINER_OF(DLinkedBlock, data, current);
         auto newblock = managedRealloc(block, newSize);
         newblock->fixLinkage();
         return newblock->data;
@@ -247,10 +262,10 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
     if(!mem)
         return;
     auto index = indexOf(size);
-    auto chunk = chunkAt(m_chunks, index);
+    auto chunk = m_chunks + index;
     
     if(index == SIZES) {
-        auto block = CONTAINER_OF(DualLinkedBlock, data, mem);
+        auto block = CONTAINER_OF(DLinkedBlock, data, mem);
         block->removeThis();
         managedFree(block);
         return;
@@ -262,8 +277,8 @@ void MemPool::deallocate(void *mem, unsigned size) noexcept {
 }
 
 void MemPool::clear() noexcept {
-    auto chunks = static_cast<PoolBlock*>(m_chunks);
-    for(auto i=0; i<SIZES; ++i, ++chunks) {
+    auto chunks = m_chunks;
+    for(auto i=0; i<=SIZES; ++i, ++chunks) {
         auto head = chunks->chunk;
         while(head) {
             auto save = head->next;
