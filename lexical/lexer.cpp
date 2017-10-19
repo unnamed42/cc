@@ -53,9 +53,8 @@ const SourceLoc* Lexer::sourceLoc() const noexcept {
 Token* Lexer::expect(TokenType type) {
     auto ret = get();
     if(!ret->is(type)) {
-        derr << ret->sourceLoc()
-            << "expecting '" << type << "', but get '"
-            << ret->type() << '\'';
+        derr.at(ret) << "expecting '" << type 
+            << "', but get '" << ret->type() << '\'';
     }
     return ret;
 }

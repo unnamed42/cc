@@ -311,7 +311,24 @@ class StructType : public Type {
         void setMembers(Utils::DeclList *members);
 };
 
-class EnumType : public Type {};
+class EnumType : public Type {
+    private:
+        bool m_complete;
+    public:
+        explicit EnumType(bool = false) noexcept;
+        
+        EnumType*       toEnum()       noexcept override;
+        const EnumType* toEnum() const noexcept override;
+        
+        bool isComplete() const noexcept override;
+        
+        unsigned size()  const noexcept override;
+        unsigned align() const noexcept override;
+        
+        void setComplete(bool) noexcept;
+        
+        void print(Diagnostic::Logger&) const override;
+};
 
 class FuncType : public DerivedType {
     private:
@@ -343,6 +360,7 @@ PointerType* makePointerType(QualType base);
 PointerType* makePointerType(Type *base, uint32_t qual = 0);
 ArrayType*   makeArrayType(QualType base, int bound = -1);
 StructType*  makeStructType(Utils::DeclList *members = nullptr);
+EnumType*    makeEnumType(bool = false);
 FuncType*    makeFuncType(QualType ret, Utils::DeclList &&params, bool vaarg);
 
 } // namespace Semantic

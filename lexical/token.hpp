@@ -28,7 +28,7 @@ class Token {
         virtual ~Token() = default;
         
         bool is(TokenType type) const noexcept;
-        Diagnostic::SourceLoc* sourceLoc() noexcept;
+        const Diagnostic::SourceLoc* sourceLoc() const noexcept;
         TokenType type() noexcept;
         
         virtual void print(Diagnostic::Logger&) const;

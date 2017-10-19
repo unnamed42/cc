@@ -121,6 +121,15 @@ bool PointerType::isCompatible(Type *that) noexcept {
     return p && base()->isCompatible(p->base());
 }
 
+EnumType::EnumType(bool complete) noexcept : m_complete(complete) {}
+EnumType*       EnumType::toEnum()       noexcept { return this; }
+const EnumType* EnumType::toEnum() const noexcept { return this; }
+bool EnumType::isComplete() const noexcept { return m_complete; }
+unsigned EnumType::size()  const noexcept { return SizeInt; }
+unsigned EnumType::align() const noexcept { return size(); }
+void EnumType::setComplete(bool complete) noexcept { m_complete = complete; }
+void EnumType::print(Logger &log) const { log << "enum"; }
+
 StructType::StructType(DeclList *list) noexcept : m_members(list) {}
 StructType*       StructType::toStruct()       noexcept { return this; }
 const StructType* StructType::toStruct() const noexcept { return this; }
@@ -304,6 +313,10 @@ PointerType* impl::makePointerType(Type *type, uint32_t qual) {
 
 ArrayType* impl::makeArrayType(QualType base, int bound) {
     return MAKE_TYPE(ArrayType, base, bound);
+}
+
+EnumType* impl::makeEnumType(bool complete) {
+    return MAKE_TYPE(EnumType, complete);
 }
 
 StructType* impl::makeStructType(DeclList *members) {

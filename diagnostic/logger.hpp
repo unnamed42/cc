@@ -3,8 +3,6 @@
 
 #include "common.hpp"
 
-#include <cstdio>
-
 namespace Compiler {
 
 namespace Text {
@@ -76,6 +74,11 @@ class Logger {
         
         self& operator<<(Semantic::Type*) noexcept;
         self& operator<<(Semantic::QualType) noexcept;
+        
+        self& at(const SourceLoc*) noexcept;
+        
+        template <class HasSource>
+        inline self& at(const HasSource *obj) noexcept { return operator<<(obj->sourceLoc()); }
 };
 
 } // namespace Diagnostic

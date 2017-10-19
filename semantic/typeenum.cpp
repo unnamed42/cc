@@ -131,7 +131,7 @@ const char* impl::toString(StorageClass stor) noexcept {
 uint32_t impl::addQualifier(uint32_t lhs, Token *rhsTok) noexcept {
     auto rhs = toQualifier(rhsTok);
     if(lhs & rhs) 
-        dwarn << rhsTok->sourceLoc() << "duplicate qualifier " << static_cast<Qualifier>(rhs);
+        dwarn.at(rhsTok) << "duplicate qualifier " << static_cast<Qualifier>(rhs);
     return lhs |= rhs;
 }
 
@@ -145,11 +145,11 @@ uint32_t impl::addStorageClass(uint32_t lhs, Token *rhsTok) noexcept {
     };
     auto rhs = toStorageClass(rhsTok);
     if(lhs & ~comp[offset(rhs)]) 
-        derr << rhsTok->sourceLoc() << "cannot apply storage class specifier '" 
+        derr.at(rhsTok) << "cannot apply storage class specifier '" 
             << static_cast<StorageClass>(rhs)
             << "' to '" << Logger::storageClasses << lhs << '\'';
     else if(rhs & Register) 
-        derr << rhsTok->sourceLoc() << "deprecated storage class specifier 'register', it will has no effect";
+        derr.at(rhsTok) << "deprecated storage class specifier 'register', it will has no effect";
     return lhs |= rhs;
 }
 
@@ -171,8 +171,7 @@ uint32_t impl::addSpecifier(uint32_t lhs, Token *rhsTok) noexcept {
     auto rhs = toSpecifier(rhsTok);
     // incompatible two specifiers
     if(lhs & ~comp[offset(rhs)])
-        derr << rhsTok->sourceLoc()
-            << "cannot apply specifier '" << static_cast<Specifier>(rhs)
+        derr.at(rhsTok) << "cannot apply specifier '" << static_cast<Specifier>(rhs)
             << "' to specifier sequence '" << Logger::specifiers << lhs << '\'';
     
     if((lhs & Long) && (rhs & Long)) {

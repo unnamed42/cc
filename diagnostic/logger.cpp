@@ -9,6 +9,8 @@
 #include "diagnostic/logger.hpp"
 #include "diagnostic/sourceloc.hpp"
 
+#include <cstdio>
+
 namespace impl = Compiler::Diagnostic;
 
 using namespace Compiler::Text;
@@ -169,4 +171,8 @@ Logger& Logger::operator<<(Qualifier qual) noexcept {
 
 Logger& Logger::operator<<(StorageClass stor) noexcept {
     return operator<<(toString(stor));
+}
+
+Logger& Logger::at(const SourceLoc *loc) noexcept {
+    return operator<<(loc);
 }

@@ -57,7 +57,7 @@ Decl* Scope::declare(const UString &name, Decl *decl) {
     auto prevDecl = find(name, false);
     
     if(!prevDecl) 
-        derr << decl->sourceLoc() << "redefinition of " << name << '\n'
+        derr.at(decl) << "redefinition of " << name << '\n'
             << prevDecl->sourceLoc() << "first declared here";
     
     return m_table.emplace(name, decl).first->second;
