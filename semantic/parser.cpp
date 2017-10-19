@@ -4,6 +4,7 @@
 #include "semantic/typeenum.hpp"
 #include "semantic/type.hpp"
 #include "semantic/expr.hpp"
+#include "semantic/stmt.hpp"
 #include "semantic/decl.hpp"
 #include "semantic/opcode.hpp"
 #include "semantic/scope.hpp"
@@ -72,7 +73,7 @@ Token* Parser::peek() {
 }
 
 void Parser::parse() {
-    ;
+    translationUnit();
 }
 
 bool Parser::isSpecifier(Token *name) {
@@ -85,8 +86,7 @@ bool Parser::isSpecifier(Token *name) {
 ObjectExpr* Parser::makeIdentifier(Token *name) {
     auto decl = m_curr->find(name);
     if(!decl)
-        derr << name->sourceLoc() 
-            << "use of undeclared indentifier '" << name << '\'';
+        derr.at(name) << "use of undeclared indentifier '" << name << '\'';
     return makeObject(name, decl);
 }
 
@@ -112,8 +112,7 @@ Expr* Parser::primaryExpr() {
         }
         case KeyTrue: case KeyFalse: return makeBool(tok);
         default: 
-            derr << tok->sourceLoc()
-                << "expecting a primary expression, but get " << tok;
+            derr.at(tok) << "expecting a primary expression, but get " << tok;
     }
     assert(false);
 }
@@ -146,7 +145,7 @@ Expr* Parser::postfixExpr() {
                 auto func = m_curr->find(resTok);
                 auto funcDecl = func ? func->toFuncDecl() : nullptr;
                 if(!funcDecl)
-                    derr << resTok->sourceLoc() << "a function designator required";
+                    derr.at(resTok) << "a function designator required";
                 result = makeCall(tok, funcDecl, argumentExprList());
                 //m_src.expect(RightParen); // handled in args
                 break;
@@ -178,9 +177,9 @@ Expr* Parser::expr() {
 // same definition as expression
 ExprList Parser::argumentExprList() {
     ExprList list{};
-    while(!m_src.test(RightParen)) {
+    while(!m_src.nextIs(RightParen)) {
         list.pushBack(assignmentExpr());
-        if(!m_src.test(Comma)) {
+        if(!m_src.nextIs(Comma)) {
             m_src.expect(RightParen);
             break;
         }
@@ -233,7 +232,7 @@ Expr* Parser::unaryExpr() {
         case Add: op = OpValueOf; break;
         case Sub: op = OpNegate; break;
         case KeySizeof: 
-            if(m_src.test(LeftParen)) {
+            if(m_src.nextIs(LeftParen)) {
                 auto result = makeSizeOf(tok, typeName().get());
                 m_src.expect(RightParen);
                 return result;
@@ -253,7 +252,7 @@ Expr* Parser::unaryExpr() {
 |       ;                                      |
 `---------------------------------------------*/
 Expr* Parser::castExpr() {
-    if(m_src.test(LeftParen)) {
+    if(m_src.nextIs(LeftParen)) {
         if(isSpecifier(peek())) {
             auto type = typeName();
             m_src.expect(RightParen);
@@ -378,55 +377,37 @@ Expr* Parser::conditionalExpr() {
 QualType Parser::typeSpecifier(StorageClass *stor) {
     QualType ret{};
     auto tok = get();
-    auto tokType = tok->type();
     
     uint32_t qual = 0, spec = 0;
     
-    // only one storage class specifier is allowed
-    if(isStorageClass(tokType)) {
-        if(!stor) 
-            derr << tok->sourceLoc() 
-                << "unexpected storage class specifier " << tokType;
-        
-        *stor = toStorageClass(tok);
-        tok = get();
+    for(;;tok = get()) {
+        auto tokType = tok->type();
+        if(isQualifier(tokType)) 
+            qual = addQualifier(qual, tok);
+        else if(isTypeSpecifier(tokType))
+            spec = addSpecifier(spec, tok);
+        else if(isStorageClass(tokType)) {
+            if(!stor) 
+            derr.at(tok) << "unexpected storage class specifier "
+                << static_cast<StorageClass>(tokType);
+            *stor = toStorageClass(tok);
+        } else if(tokType == KeyEnum)
+            ret.setBase(enumSpecifier());
+        else if(tokType == KeyStruct || tokType == KeyUnion)
+            ret.setBase(structUnionSpecifier());
+        else if(tokType == Identifier) {
+            auto id = m_curr->find(tok);
+            if(id) 
+                ret = id->type()->clone();
+        } else
+            break;
     }
     
-    for(;;tok = get()) {
-        tokType = tok->type();
-        switch(tokType) {
-            case KeyConst: case KeyVolatile: case KeyRestrict:
-                qual = addQualifier(qual, tok);
-                break;
-            case KeyVoid: case KeyChar: case KeyShort:
-            case KeyInt: case KeyLong: case KeyFloat:
-            case KeyDouble: case KeySigned: case KeyUnsigned:
-                spec = addSpecifier(spec, tok);
-                break;
-            case KeyStruct: case KeyUnion: 
-                ret.setBase(structUnionSpecifier());
-                break;
-            case KeyEnum:
-                ret.setBase(enumSpecifier());
-                break;
-            case Identifier: {
-                auto id = m_curr->find(tok);
-                if(id) {
-                    ret = id->type()->clone();
-                    break;
-                }
-            }
-            default: goto done;
-        }
-    }
-done:
     if(!spec && !ret) 
-        derr << tok->sourceLoc()
-            << "unexpected token " << tok;
+        derr.at(tok) << "unexpected token " << tok;
     m_src.unget(tok);
     if(spec && ret)
-        derr << tok->sourceLoc()
-            << "multiple data type specification";
+        derr.at(tok) << "multiple data type specification";
     else if(!ret) {
         if(spec == Void) 
             ret = makeVoidType();
@@ -478,7 +459,7 @@ StructType* Parser::structUnionSpecifier() {
         auto prevTag = m_curr->findTag(tok, false);
         // see '{', means this is a struct/union defintion,
         // override outer scope's struct directly
-        if(m_src.test(BlockOpen)) {
+        if(m_src.nextIs(BlockOpen)) {
             // if the tag is not declared
             if(!prevTag) {
                 // declare it
@@ -487,14 +468,12 @@ StructType* Parser::structUnionSpecifier() {
             } else {
                 type = prevTag->type()->toStruct();
                 if(!type)
-                    derr << tok->sourceLoc()
-                        << tok << " is not declared as a struct tag";
+                    derr.at(tok) << tok << " is not declared as a struct tag";
             }
             // definition of an incomplete existing tag
             if(type->isComplete())
                 // TODO: union check
-                derr << tok->sourceLoc()
-                    << "redefinition of tag " << tok;
+                derr.at(tok) << "redefinition of tag " << tok;
             DeclList members{};
             structDeclList(members);
             type->setMembers(members.toHeap());
@@ -525,15 +504,67 @@ void Parser::structDeclList(DeclList &members) {
     while(isSpecifier(m_src.peek())) {
         auto type = typeSpecifier();
         do {
-            auto member = structDeclarator(type);
-            members.pushBack(member);
-        } while(m_src.test(Comma));
+            members.pushBack(structDeclarator(type));
+        } while(m_src.nextIs(Comma));
         m_src.expect(Semicolon);
     }
 }
 
 Decl* Parser::structDeclarator(QualType base) {
     return declarator(Auto, base);
+}
+
+/*---------------------------------------------------.
+|   enum_specifier                                   |
+|       : ENUM '{' enumerator_list '}'               |
+|       | ENUM IDENTIFIER '{' enumerator_list '}'    |
+|       | ENUM IDENTIFIER                            |
+|       ;                                            |
+`---------------------------------------------------*/
+EnumType* Parser::enumSpecifier() {
+    // KeyEnum is recognized
+    auto tok = get();
+    EnumType *tp = nullptr;
+    if(tok->is(Identifier)) {
+        auto tag = m_curr->findTag(tok, false);
+        auto tagType = tag->type()->toEnum();
+        if(tag && tagType)
+            tp = tagType;
+        else {
+            tp = makeEnumType();
+            m_curr->declareTag(makeDecl(tok, tp));
+        }
+        if(m_src.nextIs(BlockOpen)) {
+            enumeratorList(); // BlockClose handled here
+            tp->setComplete(true);
+        }
+    } else {
+        tp = makeEnumType();
+        m_src.expect(BlockOpen);
+        enumeratorList(); // BlockClose handled here
+        tp->setComplete(true);
+    }
+    return tp;
+}
+
+/*------------------------------------------./+----------------------------------------------.
+|   enumerator_list                         ||   enumerator                                  |
+|       : enumerator                        ||       : IDENTIFIER                            |
+|       | enumerator_list ',' enumerator    ||       | IDENTIFIER '=' constant_expression    |
+|       ;                                   ||       ;                                       |
+`------------------------------------------+/`----------------------------------------------*/
+void Parser::enumeratorList() {
+    int curr = 0;
+    while(!m_src.nextIs(BlockClose)) {
+        auto tok = m_src.want(Identifier);
+        if(m_src.nextIs(Assign))
+            curr = evalLong(conditionalExpr());
+        m_curr->declare(makeDecl(tok, curr++));
+        if(!m_src.nextIs(Comma)) {
+            m_src.expect(BlockClose);
+            return;
+        }
+    }
 }
 
 /*----------------------------------------------------------.
@@ -623,10 +654,9 @@ QualType Parser::arrayFuncDeclarator(QualType base) {
         auto tok = get();
         if(tok->is(LeftSubscript)) {// array type
             if(!base->isComplete() || base->toFunc())
-                derr << tok->sourceLoc() 
-                    << "declaration of array of invalid type " << base;
+                derr.at(tok) << "declaration of array of invalid type " << base;
             int len = 0;
-            if(!m_src.test(RightSubscript)) {
+            if(!m_src.nextIs(RightSubscript)) {
                 len = evalLong(conditionalExpr());
                 m_src.expect(RightSubscript);
             }
@@ -638,9 +668,9 @@ QualType Parser::arrayFuncDeclarator(QualType base) {
              * a function type or an array type.
              */
             if(base->toArray() || base->toFunc()) 
-                derr << tok->sourceLoc() << "invalid function return type";
+                derr.at(tok) << "invalid function return type";
             if(!m_curr->is(FileScope) && !m_curr->is(ProtoScope))
-                derr << tok->sourceLoc() << "functions can not be declared here";
+                derr.at(tok) << "functions can not be declared here";
             base = paramTypeList(base); // RightParen handled here
         } else {
             m_src.unget(tok);
@@ -673,7 +703,7 @@ QualType Parser::abstractDeclarator(QualType base) {
     tryDeclarator(base, name);
     if(name) 
         // warning is better?
-        derr << name->sourceLoc() << "unexpected identifier";
+        derr.at(name) << "unexpected identifier";
     return base;
 }
 
@@ -697,7 +727,7 @@ Decl* Parser::declarator(StorageClass stor, QualType base) {
     Token *name;
     tryDeclarator(base, name);
     if(!name)
-        derr << m_src.peek()->sourceLoc() << "expecting an identifier";
+        derr.at(peek()) << "expecting an identifier";
     return makeDecl(name, base, stor);
 }
 
@@ -769,7 +799,7 @@ Decl* Parser::declarator(StorageClass stor, QualType base) {
 FuncType* Parser::paramTypeList(QualType ret) {
     // LeftParen handled in caller function
     DeclList params{};
-    if(m_src.test(RightParen)) 
+    if(m_src.nextIs(RightParen)) 
         // is a function with an unspecified parameter list
         return makeFuncType(ret, std::move(params), false);
     
@@ -780,7 +810,7 @@ FuncType* Parser::paramTypeList(QualType ret) {
     ScopeGuard guard{m_curr, ProtoScope};
     
     do {
-        if(m_src.test(Ellipsis)) {
+        if(m_src.nextIs(Ellipsis)) {
             vaarg = true; 
             break;
         }
@@ -792,19 +822,405 @@ FuncType* Parser::paramTypeList(QualType ret) {
         if(!name && tp->toVoid() && params.empty()) {
             auto tok = m_src.peek();
             if(!tok->is(RightParen))
-                derr << tok->sourceLoc() << "'void' must be the only parameter";
+                derr.at(tok) << "'void' must be the only parameter";
             break;
         } 
         if(!tp->isComplete())
-            derr << m_src.peek()->sourceLoc() << "parameter declaration with an incomplete type";
+            derr.at(peek()) << "parameter declaration with an incomplete type";
         // if name is nullptr means an abstract declarator
         params.pushBack(m_curr->declare(makeDecl(name, tp)));
-    } while(m_src.test(Comma));
+    } while(m_src.nextIs(Comma));
     
     m_src.expect(RightParen);
     return makeFuncType(ret, std::move(params), vaarg);
 }
 
+/*--------------------------------.
+|   statement                     |
+|       : labeled_statement       |
+|       | compound_statement      |
+|       | expression_statement    |
+|       | selection_statement     |
+|       | iteration_statement     |
+|       | jump_statement          |
+|       ;                         |
+`--------------------------------*/
+Stmt* Parser::statement() {
+    auto tok = get();
+    switch(tok->type()) {
+//        case KeyCase: case KeyDefault:
+//            return label_stmt();
+        case Semicolon: return makeStmt();
+        case BlockOpen: return compoundStatement();
+        case KeyIf: /*case KeySwitch: */
+            return selectionStatement();
+        case KeyFor: return forLoop();
+        case KeyDo:  return doWhileLoop();
+        case KeyWhile: return whileLoop();
+        case KeyGoto: case KeyReturn: 
+        case KeyContinue: case KeyBreak:
+            m_src.unget(tok);
+            return jumpStatement();
+        case Identifier: 
+            if(m_src.peek(Colon)) {
+                m_src.unget(tok);
+                return labelStatement();
+            }
+        default: {
+            m_src.unget(tok);
+            auto res = expr();
+            m_src.expect(Semicolon);
+            return res;
+        }
+    }
+}
+
+/*--------------------------------------------------.
+|   labeled_statement                               |
+|       : IDENTIFIER ':' statement                  |
+|       | CASE constant_expression ':' statement    | // TODO:
+|       | DEFAULT ':' statement                     | // TODO
+|       ;                                           |
+`--------------------------------------------------*/
+CompoundStmt* Parser::labelStatement() {
+    auto peek = this->peek();
+//     stmt_list l{};
+//     if(peek->m_attr == Identifier) {
+//         m_src.ignore();
+//         m_src.expect(Colon);
+//         auto dest = statement();
+//         auto name = peek->to_string();
+//         auto label = m_lmap.find(name);
+//         if(label != m_lmap.end())
+//             error(peek, "Redefinition of label \"%s\"", name);
+//         else 
+//             label = m_lmap.insert({name, make_label()}).first;
+//         l.push_back(label->second);
+//         l.push_back(dest);
+//     }
+//     return make_compound(m_curr, std::move(l));
+    return nullptr;
+}
+
+/*---------------------------------------------------.
+|   compound_statement                               |
+|       : '{' '}'                                    |
+|       | '{' statement_list '}'                     |
+|       | '{' declaration_list '}'                   |
+|       | '{' declaration_list statement_list '}'    |
+|       ;                                            |
+`---------------------------------------------------*/
+/*----------------------------------------./+------------------------------------.
+|   declaration_list                      ||   statement_list                    |
+|       : declaration                     ||       : statement                   |
+|       | declaration_list declaration    ||       | statement_list statement    |
+|       ;                                 ||       ;                             |
+`----------------------------------------+/`------------------------------------*/
+CompoundStmt* Parser::compoundStatement(QualType func) {
+//    m_src.expect(BlockOpen); // extracted in caller function
+    ScopeGuard guard{m_curr};
+    
+//     if(func) {
+//         // insert parameters
+//         for(auto &&param: func->toFunc()->params())
+//             s->insert(param);
+//     }
+//     stmt_list l{};
+//     for(;;) {
+//         auto peek = m_src.peek();
+//         if(peek->is(BlockClose)) {
+//             m_src.ignore();
+//             break;
+//         } else if(decl_peek(peek, m_curr)) 
+//             decl(l);
+//         else
+//             l.push_back(statement());
+//     }
+//     return make_compound(s, std::move(l));
+}
+
+/*----------------------------------------------------------.
+|   selection_statement                                     |
+|       : IF '(' expression ')' statement                   |
+|       | IF '(' expression ')' statement ELSE statement    |
+|       | SWITCH '(' expression ')' statement               | // TODO
+|       ;                                                   |
+`----------------------------------------------------------*/
+CondStmt* Parser::selectionStatement() {
+    //m_src.expect(If); // extracted in caller function
+    m_src.expect(LeftParen);
+    auto cond = expr();
+    m_src.expect(RightParen);
+    auto yes = statement();
+    auto no = m_src.nextIs(KeyElse) ? statement() : nullptr;
+    return makeCondStmt(cond, yes, no);
+}
+
+/*--------------------------------------------------------------------------------------.
+|   iteration_statement                                                                 |
+|       : WHILE '(' expression ')' statement                                            |
+|       | DO statement WHILE '(' expression ')' ';'                                     |
+|       | FOR '(' expression_statement expression_statement ')' statement               |
+|       | FOR '(' expression_statement expression_statement expression ')' statement    |
+|       ;                                                                               |
+`--------------------------------------------------------------------------------------*/
+#define ENTER_LOOP \
+    auto backup_break = m_break;\
+    auto backup_continue = m_continue;\
+    m_break = make_label(); \
+    m_continue = make_label(); \
+    auto s = make_scope(m_curr); \
+    std::swap(s, m_curr)
+
+#define EXIT_LOOP \
+    m_break = backup_break;\
+    m_continue = backup_continue; \
+    std::swap(s, m_curr)
+
+stmt_compound* parser::while_loop() {
+    //m_src.expect(KeyWhile); extracted in caller function
+    m_src.expect(LeftParen);
+    
+    stmt_list l{};
+    
+    ENTER_LOOP;
+    auto cond = expr();
+    m_src.expect(RightParen);
+    
+    auto body = statement();
+    auto body_label = make_label();
+    auto _if = make_if(cond, make_jump(body_label), make_jump(m_break));
+    auto loop = make_jump(m_continue);
+    
+    l.push_back(m_continue);
+    l.push_back(_if);
+    l.push_back(body_label);
+    l.push_back(body);
+    l.push_back(loop);
+    l.push_back(m_break);
+    EXIT_LOOP;
+    
+    return make_compound(s, std::move(l));
+}
+
+stmt_compound* parser::do_while_loop() {
+    // m_src.expect(KeyDo); extracted in caller function
+    stmt_list l{};
+    
+    ENTER_LOOP;
+    auto body = statement();
+    m_src.expect(KeyWhile);
+    m_src.expect(LeftParen);
+    auto cond = expr();
+    m_src.expect(RightParen);
+    m_src.expect(Semicolon);
+    
+    auto _if = make_if(cond, make_jump(m_continue), make_jump(m_break));
+    
+    l.push_back(m_continue);
+    l.push_back(body);
+    l.push_back(_if);
+    l.push_back(m_break);
+    EXIT_LOOP;
+    
+    return make_compound(s, std::move(l));
+}
+
+stmt_compound* parser::for_loop() {
+    // m_src.expect(KeyFor); extracted in caller function
+    m_src.expect(LeftParen);
+    stmt_list l{};
+    
+    ENTER_LOOP;
+    // after ENTER_LOOP, `s` is the former `m_curr`
+    if(decl_peek(m_src.peek(), s))
+        decl(l);
+    else if(!m_src.nextIs(Semicolon)) 
+        l.push_back(make_expr_stmt(expr()));
+    
+    ast_expr *cond = nullptr;
+    if(!m_src.nextIs(Semicolon)) {
+        cond = expr();
+        m_src.expect(Semicolon);
+    } else
+        cond = make_literal(1);
+    
+    stmt *step = nullptr;
+    if(!m_src.nextIs(RightParen)) {
+        step = make_expr_stmt(expr());
+        m_src.expect(RightParen);
+    } else 
+        step = make_stmt();
+    
+    auto body = statement();
+    auto body_label = make_label();
+    auto if_label = make_label();
+    auto _if = make_if(cond, make_jump(body_label), make_jump(m_break));
+    auto loop = make_jump(if_label);
+    
+    l.push_back(if_label);
+    l.push_back(_if);
+    l.push_back(body_label);
+    l.push_back(body);
+    l.push_back(m_continue);
+    l.push_back(step);
+    l.push_back(loop);
+    l.push_back(m_break);
+    EXIT_LOOP;
+    
+    return make_compound(s, std::move(l));
+}
+
+#undef ENTER_LOOP
+#undef EXIT_LOOP
+
+/*---------------------------------.
+|   jump_statement                 |
+|       : GOTO IDENTIFIER ';'      |
+|       | CONTINUE ';'             |
+|       | BREAK ';'                |
+|       | RETURN ';'               |
+|       | RETURN expression ';'    |
+|       ;                          |
+`---------------------------------*/
+stmt* parser::jump_stmt() {
+    auto tok = m_src.get();
+    stmt *res = nullptr;
+    switch(tok->m_attr) {
+        case KeyGoto: {
+            tok = m_src.get(Identifier);
+            auto name = tok->to_string();
+            auto label = m_lmap.find(name);
+            auto jump = make_jump(nullptr);
+            if(label == m_lmap.end()) 
+                m_unresolved.push_back({tok, jump});
+            else
+                jump->label = label->second;
+            res = jump;
+            break;
+        }
+        case KeyContinue:
+            if(!m_continue)
+                error(tok, "Use \"continue\" out of loop");
+            res = make_jump(m_continue);
+            break;
+        case KeyBreak:
+            if(!m_break)
+                error(tok, "Use \"break\" out of loop");
+            res = make_jump(m_break);
+            break;
+        case KeyReturn:
+            if(!m_func)
+                error(tok, "Use \"return\" out of function");
+            if(m_src.peek()->m_attr == Semicolon)
+                res = make_return(m_func);
+            else 
+                res = make_return(m_func, expr());
+        default: break;
+    }
+    m_src.expect(Semicolon);
+    return res;
+}
+
+/*-------------------------------------------------./+-------------------------------.
+|   translation_unit                               ||   external_declaration         |
+|       : external_declaration                     ||       : function_definition    |
+|       | translation_unit external_declaration    ||       | declaration            |
+|       ;                                          ||       ;                        |
+`-------------------------------------------------+/`-------------------------------*/
 void Parser::translationUnit() {
-    ScopeGuard guard{m_curr, FileScope};
+    while(!m_src.nextIs(Eof)) {
+        if(m_src.nextIs(Semicolon))
+            continue;
+        
+        StorageClass stor;
+        auto base = declSpecifier(stor);
+        
+        auto etok = peek(); // token for diagnostic use
+        if(m_src.nextIs(Semicolon)) {
+            if((base->toStruct() || base->toEnum()) && !stor)
+                continue;
+            derr.at(etok) << "expecting an identifier name";
+        }
+        
+        etok = peek();
+        
+        auto declType = base;
+        Token *name;
+        tryDeclarator(declType, name);
+        if(!name)
+            derr.at(etok) << "unexpected abstract declarator";
+        
+        if(declType->toFunc()) {
+            if(m_src.nextIs(BlockOpen)) 
+                ;//m_tu.push_back(function_definition(name, declType, stor));
+            else {
+                //m_tu.push_back(m_curr->declare_func(name, declType, stor, nullptr)->decl);
+                m_src.expect(Semicolon);
+            }
+        } else {
+//             init_list inits{};
+//             if(m_src.nextIs(Assign)) 
+//                 inits = initializer(declType);
+//             auto var_decl = m_curr->declare(name, declType, stor)->decl;
+//             var_decl->inits = std::move(inits);
+//             if(m_src.nextIs(Comma))
+//                 init_declarators(m_tu, stor, base);
+            m_src.expect(Semicolon);
+        }
+    }
+}
+
+/*---------------------------------------------------------------------------------.
+|   function_definition                                                            |
+$       : declaration_specifiers declarator declaration_list compound_statement    $ // K&R
+|       | declaration_specifiers declarator compound_statement                     |
+$       | declarator declaration_list compound_statement                           $ // K&R
+$       | declarator compound_statement                                            $ // K&R
+|       ;                                                                          |
+`---------------------------------------------------------------------------------*/
+DeclStmt* Parser::functionDefinition(Token *name, QualType tp, uint32_t stor) {
+    auto id = m_curr->find(name);
+    if(id) {
+        auto ptype = id->type(); // previous declared type
+        if(!ptype->toFunc())
+            derr.at(id) << name << "is not declared as function";
+        
+        auto pfunc = reinterpret_cast<FuncDecl*>(id);
+        if(pfunc->body())
+            derr.at(name) << name << "already has a definition";
+        if(!ptype->isCompatible(tp))
+            derr.at(name) << "mismatched function signature";
+//        m_func = pfunc;
+        // prototype may have anonymous parameter, update it
+        pfunc->updateSignature(tp);
+        pfunc->setBody(compoundStatement(tp));
+//         for(auto &&resolve: m_unresolved) {
+//             auto lname = resolve.first->to_string();
+//             auto it = m_lmap.find(lname);
+//             if(it == m_lmap.end())
+//                 error(resolve.first, "Unresolved label \"%s\"", lname);
+//             resolve.second->label = it->second;
+//         }
+//         m_lmap.clear();
+//         m_unresolved.clear();
+//         m_func = nullptr;
+//        return id;
+        return nullptr;
+//     } else {
+//         auto func = m_curr->declare_func(name, tp, stor);
+//         m_func = func;
+//         func->body = compound_stmt(tp);
+//         for(auto &&resolve: m_unresolved) {
+//             auto lname = resolve.first->to_string();
+//             auto it = m_lmap.find(lname);
+//             if(it == m_lmap.end())
+//                 error(resolve.first, "Unresolved label \"%s\"", lname);
+//             resolve.second->label = it->second;
+//         }
+//         m_lmap.clear();
+//         m_unresolved.clear();
+//         m_func = nullptr;
+//         return func->decl;
+    }
 }

@@ -23,6 +23,10 @@ Token* PP::peek() {
     return ret;
 }
 
+bool PP::peek(TokenType type) {
+    return peek()->is(type);
+}
+
 void PP::unget(Token *tok) {
     m_unget.pushBack(tok);
 }
@@ -45,7 +49,7 @@ Token* PP::want(bool (*checker)(TokenType)) {
     return ret;
 }
 
-bool PP::test(TokenType type) {
+bool PP::nextIs(TokenType type) {
     auto tok = want(type);
     pool.deallocate(tok);
     return tok != nullptr;
@@ -56,7 +60,6 @@ void PP::expect(TokenType type) {
     if(!ret) 
         derr << "unexpected end of file";
     if(!ret->is(type)) 
-        derr << ret->sourceLoc()
-            << "expecting " << type << ", but get " << ret;
+        derr.at(ret) << "expecting " << type << ", but get " << ret;
     pool.deallocate(ret);
 }

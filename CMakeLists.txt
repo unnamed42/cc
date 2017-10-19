@@ -34,6 +34,7 @@ set(SEMANTIC_FILES
         semantic/opcode.hpp semantic/opcode.cpp
         semantic/decl.hpp semantic/decl.cpp
         semantic/expr.hpp semantic/expr.cpp
+        semantic/stmt.hpp semantic/stmt.cpp
         semantic/typeenum.hpp semantic/typeenum.cpp
         semantic/type.hpp semantic/type.cpp
         semantic/qualtype.hpp semantic/qualtype.cpp

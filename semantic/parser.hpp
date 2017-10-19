@@ -33,6 +33,11 @@ class EnumType;
 
 class Decl;
 
+class Stmt;
+class CondStmt;
+class DeclStmt;
+class CompoundStmt;
+
 class Parser {
     NO_COPY_MOVE(Parser);
     private:
@@ -78,7 +83,8 @@ class Parser {
         void structDeclList(Utils::DeclList&);
         Decl* structDeclarator(QualType base);
         
-        EnumType*   enumSpecifier();
+        EnumType* enumSpecifier();
+        void      enumeratorList();
         
         QualType pointer(QualType base);
         
@@ -108,6 +114,17 @@ class Parser {
         
         QualType abstractDeclarator(QualType base);
         QualType directAbstractDeclarator(QualType);
+        
+        Stmt* statement();
+        Stmt* jumpStatement();
+        CondStmt* selectionStatement();
+        CompoundStmt* labelStatement();
+        CompoundStmt* compoundStatement(QualType);
+        CompoundStmt* forLoop();
+        CompoundStmt* whileLoop();
+        CompoundStmt* doWhileLoop();
+        DeclStmt* functionDefinition(Lexical::Token*, QualType, uint32_t = 0);
+        
         
         void translationUnit();
 };

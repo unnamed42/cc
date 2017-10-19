@@ -2,6 +2,7 @@
 #define EXPR_HPP
 
 #include "utils/vector.hpp"
+#include "semantic/stmt.hpp"
 #include "semantic/qualtype.hpp"
 
 #include <cstdint>
@@ -22,21 +23,22 @@ namespace Semantic {
 
 enum OpCode : uint32_t;
 
-class Type;
+class QualType;
 
 class FuncDecl;
 
-class Expr {
-    private:
+class Expr : public Stmt {
+    protected:
         Lexical::Token *m_tok;
-        Type           *m_type;
+        QualType        m_type;
     public:
-        Expr(Lexical::Token *) noexcept;
+        explicit Expr(Lexical::Token *) noexcept;
+        Expr(Lexical::Token*, QualType) noexcept;
         virtual ~Expr() = default;
         
         Lexical::Token* token() noexcept;
         
-        Diagnostic::SourceLoc* sourceLoc() noexcept;
+        const Diagnostic::SourceLoc* sourceLoc() const noexcept;
         
         QualType type() const noexcept;
 };

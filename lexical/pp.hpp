@@ -12,6 +12,9 @@ namespace Lexical {
 class Token;
 enum TokenType : uint32_t;
 
+/**
+ * Preprocessor
+ */
 class PP {
     NO_COPY_MOVE(PP);
     private:
@@ -24,12 +27,14 @@ class PP {
         
         Token* peek();
         
+        bool peek(TokenType);
+        
         void unget(Token*);
         
         Token* want(TokenType);
         Token* want(bool(*)(TokenType));
         
-        bool test(TokenType);
+        bool nextIs(TokenType);
         
         void expect(TokenType);
 };

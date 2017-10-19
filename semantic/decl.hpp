@@ -20,9 +20,12 @@ class Token;
 namespace Semantic {
 
 class FuncDecl;
+class EnumDecl;
+
+class CompoundStmt;
 
 class Decl {
-    private:
+    protected:
         /**< declared name */
         Lexical::Token *m_tok;
         /**< declared type */
@@ -35,27 +38,46 @@ class Decl {
         
         Lexical::Token* token() noexcept;
         const Text::UString& name() const noexcept;
-        Diagnostic::SourceLoc* sourceLoc() noexcept;
+        const Diagnostic::SourceLoc* sourceLoc() const noexcept;
         QualType type() noexcept;
         StorageClass storageClass() const noexcept;
         
         bool isType() const noexcept;
         
         virtual FuncDecl* toFuncDecl() noexcept;
+        virtual EnumDecl* toEnumDecl() noexcept;
 };
 
 class FuncDecl : public Decl {
     private:
-        Utils::DeclList m_params;
+        Utils::DeclList  m_params;
+        CompoundStmt    *m_body;
     public:
         FuncDecl(Lexical::Token*, QualType, StorageClass stor, Utils::DeclList&&) noexcept;
         
         FuncDecl* toFuncDecl() noexcept override;
         
         Utils::DeclList& params() noexcept;
+        
+        CompoundStmt* body() noexcept;
+        void          setBody(CompoundStmt*) noexcept;
+        
+        void updateSignature(QualType) noexcept;
 };
 
-Decl* makeDecl(Lexical::Token *name, QualType type, StorageClass stor = Auto);
+class EnumDecl : public Decl {
+    private:
+        int m_val;
+    public:
+        EnumDecl(Lexical::Token*, int val) noexcept;
+        
+        EnumDecl* toEnumDecl() noexcept override;
+        
+        int value() const noexcept;
+};
+
+Decl*     makeDecl(Lexical::Token *name, QualType type, StorageClass stor = Auto);
+EnumDecl* makeDecl(Lexical::Token *name, int value);
 
 } // namespace Semantic
 } // namespace Compiler

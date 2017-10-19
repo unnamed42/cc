@@ -1,4 +1,5 @@
 #include "utils/mempool.hpp"
+#include "text/ustring.hpp"
 #include "lexical/token.hpp"
 #include "lexical/tokentype.hpp"
 #include "semantic/expr.hpp"
@@ -42,25 +43,24 @@ static Expr* tryCast(Expr *expr, QualType destType) {
     auto destNumber = destType->toNumber();
     if(destNumber) {
         if(!srcNumber && !destNumber->isBool())
-            derr << expr->sourceLoc() << "rhs is required to be an arithmetic type";
+            derr.at(expr) << "rhs is required to be an arithmetic type";
     } else if(destPtr) {
         srcType = srcType.decay();
         srcPtr = srcType->toPointer();
         if(!srcPtr)
-            derr << expr->sourceLoc() 
-                << "cannot cast type '" << expr->type() << "' to a pointer type";
+            derr.at(expr) << "cannot cast type '" << expr->type() << "' to a pointer type";
         
         auto destBase = destPtr->base();
         auto srcBase = srcPtr->base();
         
         auto destQual = destBase.qual(), srcQual = srcBase.qual();
         if(~destQual & srcQual) 
-            derr << expr->sourceLoc() << "the cast loses qualifier";
+            derr.at(expr) << "the cast loses qualifier";
         else if(!destPtr->isCompatible(srcPtr) && !(destPtr->isVoidPtr() || srcPtr->isVoidPtr()))
-            derr << expr->sourceLoc() << "cannot convert '" << srcType 
+            derr.at(expr) << "cannot convert '" << srcType 
                 << "' to type '" << destType << '\'';
     } else if(!destType->isCompatible(srcType))
-        derr << expr->sourceLoc() << "cannot convert '" << srcType 
+        derr.at(expr) << "cannot convert '" << srcType 
                 << "' to type '" << destType << '\'';
     
     if(destType->isCompatible(srcType))
@@ -68,10 +68,11 @@ static Expr* tryCast(Expr *expr, QualType destType) {
     return makeCast(expr, destType);
 }
 
-Expr::Expr(Token *tok) noexcept : 
-m_tok(tok) {}
+Expr::Expr(Token *tok) noexcept : m_tok(tok) {}
+Expr::Expr(Token *tok, QualType type) noexcept : m_tok(tok), m_type(type) {}
 Token* Expr::token() noexcept { return m_tok; }
-SourceLoc* Expr::sourceLoc() noexcept { return m_tok->sourceLoc(); }
+const SourceLoc* Expr::sourceLoc() const noexcept { return m_tok->sourceLoc(); }
+QualType Expr::type() const noexcept { return m_type; }
 
 UnaryExpr::UnaryExpr(Token *tok, OpCode op, Expr *expr) noexcept 
     : Expr(tok), op(op), expr(expr) {}
@@ -86,28 +87,25 @@ ConstantExpr::ConstantExpr(Token *tok, Value *val) noexcept
     : Expr(tok), val(val) {}
 
 ConstantExpr* impl::makeBool(Token *tok) {
-    auto val = new (pool) IntegerValue(tok->sourceLoc(), tok->is(KeyTrue));
-    return new (pool) ConstantExpr(tok, val);
+    return new (pool) ConstantExpr(tok, makeNumberValue(tok->is(KeyTrue)));
 }
 
 ConstantExpr* impl::makeNumber(Token *tok) {
     auto &&str = *tok->content();
     Value *val;
     if(tok->is(PPFloat))
-        val = new (pool) DoubleValue(tok->sourceLoc(), parseAsDouble(str));
+        val = makeDoubleValue(parseAsDouble(str));
     else
-        val = new (pool) IntegerValue(tok->sourceLoc(), parseAsNumber(str));
+        val = makeNumberValue(parseAsNumber(str));
     return new (pool) ConstantExpr(tok, val);
 }
 
 ConstantExpr* impl::makeString(Token *tok) {
-    auto val = new (pool) StringValue(tok->sourceLoc(), *tok->content());
-    return new (pool) ConstantExpr(tok, val);
+    return new (pool) ConstantExpr(tok, makeStringValue(tok->content()));
 }
 
 ConstantExpr* impl::makeChar(Token *tok) {
-    auto val = new (pool) CharValue(tok->sourceLoc(), tok->content()->front());
-    return new (pool) ConstantExpr(tok, val);
+    return new (pool) ConstantExpr(tok, makeNumberValue(tok->content()->front()));
 }
 
 UnaryExpr* impl::makeUnary(Token *tok, OpCode op, Expr *expr) {
@@ -126,15 +124,15 @@ BinaryExpr* impl::makeMemberAccess(Token *op, Expr *base, Token *member) {
     
     if(access == OpMemberPtr) {
         if(!basePtr)
-            derr << op->sourceLoc() << "a pointer type required";
+            derr.at(op) << "a pointer type required";
         baseType = basePtr->base();
     } 
     if(!baseType->isComplete())
-        derr << op->sourceLoc() << "invalid use of an incomplete type";
+        derr.at(op) << "invalid use of an incomplete type";
     
     auto baseStruct = baseType->toStruct();
     if(!baseStruct)
-        derr << op->sourceLoc() << "a struct/union type required";
+        derr.at(op) << "a struct/union type required";
     
     auto members = baseStruct->members();
     auto id = members.begin(), end = members.end();
@@ -145,7 +143,7 @@ BinaryExpr* impl::makeMemberAccess(Token *op, Expr *base, Token *member) {
     }
     
     if(id == end) 
-        derr << member->sourceLoc() << member << " is not a member of struct/union " << base->type();
+        derr.at(member) << member << " is not a member of struct/union " << base->type();
     
     /* C99 6.5.2.3 Structure and union members
      * 
@@ -166,8 +164,7 @@ CallExpr* impl::makeCall(Token *tok, FuncDecl *func, Utils::ExprList &&args) {
     
     auto funcType = type->toFunc();
     if(!funcType) 
-        derr << tok->sourceLoc() 
-            << "apply operator() to invalid type " << func->type();
+        derr.at(tok) << "invoke call to invalid type " << func->type();
     
     auto &&params = func->params();
     
@@ -176,11 +173,11 @@ CallExpr* impl::makeCall(Token *tok, FuncDecl *func, Utils::ExprList &&args) {
     
     for(; param != paramEnd; ++param, ++arg) {
         if(arg == argEnd) 
-            derr << (*arg)->sourceLoc() << "too few arguments";
+            derr.at(*arg) << "too few arguments";
         *arg = tryCast(*arg, (*param)->type());
     }
     if(param == paramEnd && arg != argEnd && !funcType->isVaArgs())
-        derr << (*arg)->sourceLoc() << "too many arguments";
+        derr.at(*arg) << "too many arguments";
     
     return new (pool) CallExpr(func, move(args));
 }
