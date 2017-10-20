@@ -301,3 +301,11 @@ void* operator new(std::size_t size, MemPool &pool, const MemPool::AlignedTag &)
 void operator delete(void* mem, std::size_t size, Compiler::Utils::MemPool& pool) noexcept {
     pool.deallocate(mem, size);
 }
+
+void* operator new[](std::size_t size, MemPool &pool) {
+    return pool.allocate(size);
+}
+
+void operator delete[](void *mem, std::size_t size, MemPool &pool) noexcept {
+    pool.deallocate(mem, size);
+}

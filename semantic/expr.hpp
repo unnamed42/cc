@@ -104,6 +104,8 @@ ConstantExpr* makeBool(Lexical::Token*);
 ConstantExpr* makeSizeOf(Lexical::Token *opSizeOf, Expr *expr);
 ConstantExpr* makeSizeOf(Lexical::Token *opSizeOf, Type *type);
 
+ConstantExpr* makeInteger(long val);
+
 /**
  * Create a lvalue object.
  * @param tok where the identifier is used

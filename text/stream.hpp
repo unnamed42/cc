@@ -13,15 +13,14 @@ class UString;
 class Stream {
     NO_COPY_MOVE(Stream);
     private:
-        using SourceLoc = Diagnostic::SourceLoc;
         using self      = Stream;
     public:
-        using PosType   = typename SourceLoc::PosType;
+        using PosType   = typename Diagnostic::SourceLoc::PosType;
     private:
         /**< underlying text file */
-        File      m_file;
+        File                  m_file;
         /**< source information of this stream */
-        SourceLoc m_loc;
+        Diagnostic::SourceLoc m_loc;
 //         /**< last peeked character. If not read yet, its value should be `invalid`. */
 //         UChar     m_peek;
     private:
@@ -61,7 +60,7 @@ class Stream {
         void skipLine() noexcept;
         
         /**
-         * Before execute this function, a /* must have been extracted already.
+         * Before execute this function, a / and * must have been extracted already.
          */
         void skipBlockComment() noexcept;
         
@@ -74,7 +73,7 @@ class Stream {
          */
         int skipSpace() noexcept;
         
-        const SourceLoc& sourceLoc() const noexcept;
+        const Diagnostic::SourceLoc& sourceLoc() const noexcept;
         
         /**
          * @return current reading position
@@ -90,6 +89,7 @@ class Stream {
         PosType lineBegin() const noexcept;
         
         explicit operator bool();
+        
         self& operator>>(UChar &result);
 };
 

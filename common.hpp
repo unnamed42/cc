@@ -25,7 +25,10 @@ template <class T> struct removeRef<T&> { using type = T; };
 template <class T> struct removeRef<T&&> { using type = T; };
 
 template <class T>
-inline typename removeRef<T>::type&& move(T &&value) noexcept { return static_cast<typename removeRef<T>::type&&>(value); }
+using RValRef = typename removeRef<T>::type &&;
+
+template <class T>
+inline RValRef<T> move(T &&value) noexcept { return static_cast<RValRef<T>>(value); }
 
 } // namespace Compiler
 

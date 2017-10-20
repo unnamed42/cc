@@ -6,6 +6,7 @@
 #include "utils/iterator.hpp"
 
 #include <cstring>
+#include <initializer_list>
 
 namespace Compiler {
 
@@ -15,6 +16,7 @@ class Token;
 namespace Semantic {
 class Decl;
 class Expr;
+class Stmt;
 }
 
 namespace Utils {
@@ -31,8 +33,13 @@ class Vector {
         unsigned   m_len;
         unsigned   m_cap;
     public:
-        Vector() : m_data((ValueType*)pool.allocate(sizeof(ValueType)*16)), m_len(0), m_cap(16) {}
+        Vector() : m_data(new (pool) ValueType[16]), m_len(0), m_cap(16) {}
         Vector(unsigned reserve) : Vector() { this->reserve(reserve); }
+        Vector(std::initializer_list<T> list) { 
+            m_len = m_cap = list.size();
+            m_data = new (pool) ValueType[list.size()];
+            memcpy(m_data, list.begin(), sizeof(ValueType) * m_cap); 
+        }
         Vector(ValueType fill, unsigned count = 1) : Vector(count) {
             m_len = count;
             while(--count)
@@ -46,7 +53,7 @@ class Vector {
             other.m_data = nullptr;
         }
         
-        ~Vector() { pool.deallocate(m_data, m_cap * sizeof(ValueType)); }
+        ~Vector() { operator delete[](m_data, sizeof(ValueType) * m_cap, pool); }
         
         /**
          * Move stack allocated Vector object into heap memory.
@@ -109,10 +116,12 @@ class Vector {
 extern template class Vector<Lexical::Token*>;
 extern template class Vector<Semantic::Decl*>;
 extern template class Vector<Semantic::Expr*>;
+extern template class Vector<Semantic::Stmt*>;
 
 using TokenList = Vector<Lexical::Token*>;
 using DeclList = Vector<Semantic::Decl*>;
 using ExprList = Vector<Semantic::Expr*>;
+using StmtList = Vector<Semantic::Stmt*>;
 
 } // namespace Utils
 } // namespace Compiler

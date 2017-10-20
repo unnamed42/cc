@@ -85,4 +85,7 @@ void* operator new(std::size_t size, Compiler::Utils::MemPool &pool, const Compi
 
 void operator delete(void *mem, std::size_t size, Compiler::Utils::MemPool &pool) noexcept;
 
+void* operator new[](std::size_t size, Compiler::Utils::MemPool &pool);
+void  operator delete[](void *mem, std::size_t size, Compiler::Utils::MemPool &pool) noexcept;
+
 #endif // MEMPOOL_HPP

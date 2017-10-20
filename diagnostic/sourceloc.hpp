@@ -8,20 +8,20 @@ namespace Diagnostic {
 
 struct SourceLoc {
     /**< return type of ftell() */
-    using PosType = long;
+    using PosType = decltype(ftell(0));
     
     /**< path to this source content, if nullptr means this is generated from macro */
     const char *path;
     /**< file device */
     FILE *file;
     /**< line beginning position of this source content */
-    PosType lineBegin;
+    PosType lineBegin = 0;
     /**< line number, starting from 1, for diagnostic only */
-    unsigned line;
+    unsigned line = 1;
     /**< column, starting from 1 */
-    unsigned column;
+    unsigned column = 1;
     /**< length of this source content, used only in diagnostics */
-    unsigned length;
+    unsigned length = 0;
     
     SourceLoc() noexcept = default;
     SourceLoc(const char *path, FILE *file) noexcept;

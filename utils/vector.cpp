@@ -7,3 +7,4 @@ using namespace Compiler::Semantic;
 template class Compiler::Utils::Vector<Token*>;
 template class Compiler::Utils::Vector<Decl*>;
 template class Compiler::Utils::Vector<Expr*>;
+template class Compiler::Utils::Vector<Stmt*>;

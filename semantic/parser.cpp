@@ -30,13 +30,31 @@ struct ScopeGuard {
     Scope* &curr;
     Scope  new_;
     Scope *save;
-    bool   done;
     
     ScopeGuard(Scope* &curr, ScopeType type = BlockScope) :
-        curr(curr), new_(type, curr), save(&new_), done(false) { std::swap(this->curr, save); }
-    ~ScopeGuard() noexcept { if(!done) std::swap(curr, save); }
+        curr(curr), new_(type, curr), save(&new_) { std::swap(this->curr, save); }
+    ~ScopeGuard() noexcept { std::swap(curr, save); }
+};
+
+/**
+ * RAII trick to enter new loop and auto exit
+ */
+struct LoopGuard {
+    LabelStmt* &break_;
+    LabelStmt* &continue_;
+    LabelStmt *nbreak_;
+    LabelStmt *ncontinue_;
     
-    void release() noexcept { std::swap(save, curr); done = true; }
+    LoopGuard(LabelStmt* &break_, LabelStmt* &continue_) :
+       break_(break_), continue_(continue_), nbreak_(makeLabelStmt()), ncontinue_(makeLabelStmt()) {
+           std::swap(this->break_, nbreak_);
+           std::swap(this->continue_, ncontinue_);
+    }
+    
+    ~LoopGuard() noexcept {
+        std::swap(break_, nbreak_);
+        std::swap(continue_, ncontinue_);
+    }
 };
 
 static unsigned precedence(TokenType type) noexcept {
@@ -56,7 +74,7 @@ static unsigned precedence(TokenType type) noexcept {
     }
 }
 
-Parser::Parser(const char *path) : m_src(path), m_curr(nullptr) {}
+Parser::Parser(const char *path) : m_src(path) {}
 
 Token* Parser::get() {
     auto ret = m_src.get();
@@ -884,7 +902,7 @@ Stmt* Parser::statement() {
 `--------------------------------------------------*/
 CompoundStmt* Parser::labelStatement() {
     auto peek = this->peek();
-//     stmt_list l{};
+//     StmtList l{};
 //     if(peek->m_attr == Identifier) {
 //         m_src.ignore();
 //         m_src.expect(Colon);
@@ -895,8 +913,8 @@ CompoundStmt* Parser::labelStatement() {
 //             error(peek, "Redefinition of label \"%s\"", name);
 //         else 
 //             label = m_lmap.insert({name, make_label()}).first;
-//         l.push_back(label->second);
-//         l.push_back(dest);
+//         l.pushBack(label->second);
+//         l.pushBack(dest);
 //     }
 //     return make_compound(m_curr, std::move(l));
     return nullptr;
@@ -925,7 +943,7 @@ CompoundStmt* Parser::compoundStatement(QualType func) {
 //         for(auto &&param: func->toFunc()->params())
 //             s->insert(param);
 //     }
-//     stmt_list l{};
+//     StmtList l{};
 //     for(;;) {
 //         auto peek = m_src.peek();
 //         if(peek->is(BlockClose)) {
@@ -934,7 +952,7 @@ CompoundStmt* Parser::compoundStatement(QualType func) {
 //         } else if(decl_peek(peek, m_curr)) 
 //             decl(l);
 //         else
-//             l.push_back(statement());
+//             l.pushBack(statement());
 //     }
 //     return make_compound(s, std::move(l));
 }
@@ -964,50 +982,40 @@ CondStmt* Parser::selectionStatement() {
 |       | FOR '(' expression_statement expression_statement expression ')' statement    |
 |       ;                                                                               |
 `--------------------------------------------------------------------------------------*/
-#define ENTER_LOOP \
-    auto backup_break = m_break;\
-    auto backup_continue = m_continue;\
-    m_break = make_label(); \
-    m_continue = make_label(); \
-    auto s = make_scope(m_curr); \
-    std::swap(s, m_curr)
-
-#define EXIT_LOOP \
-    m_break = backup_break;\
-    m_continue = backup_continue; \
-    std::swap(s, m_curr)
-
-stmt_compound* parser::while_loop() {
+CompoundStmt* Parser::whileLoop() {
     //m_src.expect(KeyWhile); extracted in caller function
     m_src.expect(LeftParen);
     
-    stmt_list l{};
+    StmtList l{};
     
-    ENTER_LOOP;
+    LoopGuard  _{m_break, m_continue};
+    ScopeGuard __{m_curr};
+    
     auto cond = expr();
     m_src.expect(RightParen);
     
     auto body = statement();
-    auto body_label = make_label();
-    auto _if = make_if(cond, make_jump(body_label), make_jump(m_break));
-    auto loop = make_jump(m_continue);
+    auto bodyLabel = makeLabelStmt();
+    auto condStmt = makeCondStmt(cond, makeJumpStmt(bodyLabel), makeJumpStmt(m_break));
+    auto loop = makeJumpStmt(m_continue);
     
-    l.push_back(m_continue);
-    l.push_back(_if);
-    l.push_back(body_label);
-    l.push_back(body);
-    l.push_back(loop);
-    l.push_back(m_break);
-    EXIT_LOOP;
+    l.pushBack(m_continue);
+    l.pushBack(condStmt);
+    l.pushBack(bodyLabel);
+    l.pushBack(body);
+    l.pushBack(loop);
+    l.pushBack(m_break);
     
-    return make_compound(s, std::move(l));
+    return makeCompoundStmt(std::move(l));
 }
 
-stmt_compound* parser::do_while_loop() {
+CompoundStmt* Parser::doWhileLoop() {
     // m_src.expect(KeyDo); extracted in caller function
-    stmt_list l{};
+    StmtList l{};
     
-    ENTER_LOOP;
+    LoopGuard  _{m_break, m_continue};
+    ScopeGuard __{m_curr};
+    
     auto body = statement();
     m_src.expect(KeyWhile);
     m_src.expect(LeftParen);
@@ -1015,64 +1023,61 @@ stmt_compound* parser::do_while_loop() {
     m_src.expect(RightParen);
     m_src.expect(Semicolon);
     
-    auto _if = make_if(cond, make_jump(m_continue), make_jump(m_break));
+    auto condStmt = makeCondStmt(cond, makeJumpStmt(m_continue), makeJumpStmt(m_break));
     
-    l.push_back(m_continue);
-    l.push_back(body);
-    l.push_back(_if);
-    l.push_back(m_break);
-    EXIT_LOOP;
+    l.pushBack(m_continue);
+    l.pushBack(body);
+    l.pushBack(condStmt);
+    l.pushBack(m_break);
     
-    return make_compound(s, std::move(l));
+    return makeCompoundStmt(std::move(l));
 }
 
-stmt_compound* parser::for_loop() {
+CompoundStmt* Parser::forLoop() {
     // m_src.expect(KeyFor); extracted in caller function
     m_src.expect(LeftParen);
-    stmt_list l{};
+    StmtList l{};
     
-    ENTER_LOOP;
-    // after ENTER_LOOP, `s` is the former `m_curr`
+    LoopGuard  _{m_break, m_continue};
+    ScopeGuard __{m_curr};
+    
+    // after entering loop, `s` is the former `m_curr`
     if(decl_peek(m_src.peek(), s))
         decl(l);
     else if(!m_src.nextIs(Semicolon)) 
-        l.push_back(make_expr_stmt(expr()));
+        l.pushBack(expr());
     
-    ast_expr *cond = nullptr;
+    Expr *cond = nullptr;
     if(!m_src.nextIs(Semicolon)) {
         cond = expr();
         m_src.expect(Semicolon);
     } else
-        cond = make_literal(1);
+        cond = makeInteger(1);
     
-    stmt *step = nullptr;
+    Stmt *step = nullptr;
     if(!m_src.nextIs(RightParen)) {
-        step = make_expr_stmt(expr());
+        step = expr();
         m_src.expect(RightParen);
     } else 
-        step = make_stmt();
+        step = makeStmt();
     
     auto body = statement();
-    auto body_label = make_label();
-    auto if_label = make_label();
-    auto _if = make_if(cond, make_jump(body_label), make_jump(m_break));
-    auto loop = make_jump(if_label);
+    auto bodyLabel = makeLabelStmt();
+    auto condLabel = makeLabelStmt();
+    auto condStmt = makeCondStmt(cond, makeJumpStmt(bodyLabel), makeJumpStmt(m_break));
+    auto loop = makeJumpStmt(condLabel);
     
-    l.push_back(if_label);
-    l.push_back(_if);
-    l.push_back(body_label);
-    l.push_back(body);
-    l.push_back(m_continue);
-    l.push_back(step);
-    l.push_back(loop);
-    l.push_back(m_break);
-    EXIT_LOOP;
+    l.pushBack(condLabel);
+    l.pushBack(condStmt);
+    l.pushBack(bodyLabel);
+    l.pushBack(body);
+    l.pushBack(m_continue);
+    l.pushBack(step);
+    l.pushBack(loop);
+    l.pushBack(m_break);
     
-    return make_compound(s, std::move(l));
+    return makeCompoundStmt(std::move(l));
 }
-
-#undef ENTER_LOOP
-#undef EXIT_LOOP
 
 /*---------------------------------.
 |   jump_statement                 |
@@ -1083,17 +1088,17 @@ stmt_compound* parser::for_loop() {
 |       | RETURN expression ';'    |
 |       ;                          |
 `---------------------------------*/
-stmt* parser::jump_stmt() {
-    auto tok = m_src.get();
-    stmt *res = nullptr;
-    switch(tok->m_attr) {
+JumpStmt* Parser::jumpStatement() {
+    auto tok = get();
+    JumpStmt *res = nullptr;
+    switch(tok->type()) {
         case KeyGoto: {
-            tok = m_src.get(Identifier);
-            auto name = tok->to_string();
+            tok = m_src.want(Identifier);
+            auto name = tok->content();
             auto label = m_lmap.find(name);
             auto jump = make_jump(nullptr);
             if(label == m_lmap.end()) 
-                m_unresolved.push_back({tok, jump});
+                m_unresolved.pushBack({tok, jump});
             else
                 jump->label = label->second;
             res = jump;
@@ -1101,13 +1106,13 @@ stmt* parser::jump_stmt() {
         }
         case KeyContinue:
             if(!m_continue)
-                error(tok, "Use \"continue\" out of loop");
-            res = make_jump(m_continue);
+                derr.at(tok) << "use \"continue\" out of loop";
+            res = makeJumpStmt(m_continue);
             break;
         case KeyBreak:
             if(!m_break)
-                error(tok, "Use \"break\" out of loop");
-            res = make_jump(m_break);
+                derr.at(tok) << "use \"break\" out of loop";
+            res = makeJumpStmt(m_break);
             break;
         case KeyReturn:
             if(!m_func)
@@ -1153,9 +1158,9 @@ void Parser::translationUnit() {
         
         if(declType->toFunc()) {
             if(m_src.nextIs(BlockOpen)) 
-                ;//m_tu.push_back(function_definition(name, declType, stor));
+                ;//m_tu.pushBack(function_definition(name, declType, stor));
             else {
-                //m_tu.push_back(m_curr->declare_func(name, declType, stor, nullptr)->decl);
+                //m_tu.pushBack(m_curr->declare_func(name, declType, stor, nullptr)->decl);
                 m_src.expect(Semicolon);
             }
         } else {
@@ -1179,7 +1184,7 @@ $       | declarator declaration_list compound_statement                        
 $       | declarator compound_statement                                            $ // K&R
 |       ;                                                                          |
 `---------------------------------------------------------------------------------*/
-DeclStmt* Parser::functionDefinition(Token *name, QualType tp, uint32_t stor) {
+DeclStmt* Parser::functionDefinition(Token *name, QualType func, uint32_t stor) {
     auto id = m_curr->find(name);
     if(id) {
         auto ptype = id->type(); // previous declared type
@@ -1189,12 +1194,12 @@ DeclStmt* Parser::functionDefinition(Token *name, QualType tp, uint32_t stor) {
         auto pfunc = reinterpret_cast<FuncDecl*>(id);
         if(pfunc->body())
             derr.at(name) << name << "already has a definition";
-        if(!ptype->isCompatible(tp))
+        if(!ptype->isCompatible(func))
             derr.at(name) << "mismatched function signature";
 //        m_func = pfunc;
         // prototype may have anonymous parameter, update it
-        pfunc->updateSignature(tp);
-        pfunc->setBody(compoundStatement(tp));
+        pfunc->updateSignature(func);
+        pfunc->setBody(compoundStatement(func));
 //         for(auto &&resolve: m_unresolved) {
 //             auto lname = resolve.first->to_string();
 //             auto it = m_lmap.find(lname);

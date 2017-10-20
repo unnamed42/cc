@@ -6,9 +6,6 @@
 
 namespace Compiler {
 
-namespace Utils {
-class PtrList;
-}
 namespace Diagnostic {
 struct SourceLoc;
 }
@@ -36,6 +33,8 @@ class Decl;
 class Stmt;
 class CondStmt;
 class DeclStmt;
+class JumpStmt;
+class LabelStmt;
 class CompoundStmt;
 
 class Parser {
@@ -43,7 +42,11 @@ class Parser {
     private:
         Lexical::PP m_src;
         /**< current scope */
-        Scope      *m_curr;
+        Scope      *m_curr = nullptr;
+        
+        /**< jump labels used in loops/switch */
+        LabelStmt *m_break = nullptr;
+        LabelStmt *m_continue = nullptr;
     public:
         Parser(const char *path);
         
@@ -116,15 +119,22 @@ class Parser {
         QualType directAbstractDeclarator(QualType);
         
         Stmt* statement();
-        Stmt* jumpStatement();
+        JumpStmt* jumpStatement();
         CondStmt* selectionStatement();
         CompoundStmt* labelStatement();
         CompoundStmt* compoundStatement(QualType);
         CompoundStmt* forLoop();
         CompoundStmt* whileLoop();
         CompoundStmt* doWhileLoop();
-        DeclStmt* functionDefinition(Lexical::Token*, QualType, uint32_t = 0);
         
+        /**
+         * Parsing a function definition/implementation.
+         * @param name name of function
+         * @param func declared type of function
+         * @param stor storage class specifiers of function
+         * @return processed declaration of function
+         */
+        DeclStmt* functionDefinition(Lexical::Token *name, QualType func, uint32_t stor = 0);
         
         void translationUnit();
 };
