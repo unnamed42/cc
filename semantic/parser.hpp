@@ -73,12 +73,16 @@ class Parser {
         QualType typeName();
         
         /**
-         * Actions performed in declSpecifier()
-         * @param stor storage-class specifier, nullptr means no storage class are accepted
-         * @return parsed type
+         * Parse a declaration-specifier according to grammar
+         * @param type parsed type, returned by reference
+         * @param stor optional storage-class specifier, nullptr means no storage is accepted
+         * @param required true if a declaration-specifier is required here
+         * @return true when parse succeeded
          */
-        QualType typeSpecifier(StorageClass *stor = nullptr);
+        bool tryDeclSpecifier(QualType &type, StorageClass *stor = nullptr, bool required = false);
         
+        // thin wrapper around tryDeclSpecifier()
+        QualType typeSpecifier(StorageClass *stor = nullptr);
         // storage-class, type-specifier, type-qualifier list
         QualType declSpecifier(StorageClass&);
         
@@ -118,11 +122,25 @@ class Parser {
         QualType abstractDeclarator(QualType base);
         QualType directAbstractDeclarator(QualType);
         
+        /**
+         * Parse a declaration according to grammar
+         * @param list where results go in
+         * @param type type of declared variables
+         * @param stor storage-class of declared variables
+         */
+        void declaration(Utils::StmtList &list, QualType type, StorageClass stor);
+        
+        void initDeclarators(Utils::StmtList &list, QualType type, StorageClass stor);
+        
+        Expr* initializer(QualType);
+        Expr* arrayInitializer(ArrayType*);
+        Expr* aggregateInitializer(StructType*);
+        
         Stmt* statement();
         JumpStmt* jumpStatement();
         CondStmt* selectionStatement();
         CompoundStmt* labelStatement();
-        CompoundStmt* compoundStatement(QualType);
+        CompoundStmt* compoundStatement(QualType func = nullptr);
         CompoundStmt* forLoop();
         CompoundStmt* whileLoop();
         CompoundStmt* doWhileLoop();

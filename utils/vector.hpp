@@ -80,6 +80,13 @@ class Vector {
         
         bool empty() const noexcept { return m_len == 0; }
         
+        void append(const self &o) {
+            auto osize = o.size();
+            reserve(size() + osize);
+            memcpy(m_data + m_len, o.m_data, osize * sizeof(ValueType));
+            m_len += osize;
+        }
+        
         void pushBack(ValueType val) { 
             if(m_len == m_cap)
                 resize(m_cap + m_cap/2);
@@ -107,7 +114,7 @@ class Vector {
         self& operator=(self other) { swap(other); return *this; }
     protected:
         void resize(unsigned size) {
-            auto p = pool.reallocate(m_data, m_cap, size * sizeof(ValueType));
+            auto p = pool.reallocate(m_data, m_cap * sizeof(ValueType), size * sizeof(ValueType));
             m_cap = size;
             m_data = static_cast<decltype(m_data)>(p);
         }

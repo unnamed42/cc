@@ -2,6 +2,7 @@
 #define DECL_HPP
 
 #include "utils/vector.hpp"
+#include "semantic/stmt.hpp"
 #include "semantic/qualtype.hpp"
 #include "semantic/typeenum.hpp"
 
@@ -22,9 +23,7 @@ namespace Semantic {
 class FuncDecl;
 class EnumDecl;
 
-class CompoundStmt;
-
-class Decl {
+class Decl : public Stmt {
     protected:
         /**< declared name */
         Lexical::Token *m_tok;
@@ -32,6 +31,8 @@ class Decl {
         QualType        m_type;
         /**< storage class specifier */
         StorageClass    m_stor;
+        /**< initializer */
+        Expr           *m_init = nullptr;
     public:
         Decl(Lexical::Token*, QualType, StorageClass) noexcept;
         virtual ~Decl() = default;
@@ -43,6 +44,8 @@ class Decl {
         StorageClass storageClass() const noexcept;
         
         bool isType() const noexcept;
+        
+        void setInit(Expr*) noexcept;
         
         virtual FuncDecl* toFuncDecl() noexcept;
         virtual EnumDecl* toEnumDecl() noexcept;

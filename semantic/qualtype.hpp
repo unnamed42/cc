@@ -15,7 +15,7 @@ class QualType {
     private:
         uintptr_t m_ptr;
     public:
-        QualType() noexcept;
+        constexpr QualType() noexcept;
         QualType(Type *type, uint32_t qual = 0) noexcept;
         QualType(const self &other) noexcept;
         
@@ -53,6 +53,7 @@ class QualType {
         self decay() noexcept;
         
         explicit operator bool() const noexcept;
+        
         bool operator==(const self &o) const noexcept;
         bool operator!=(const self &o) const noexcept;
 };

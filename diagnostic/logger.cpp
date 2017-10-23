@@ -52,6 +52,12 @@ Logger::~Logger() noexcept(false) {
         throw 0; // TODO: better exception object
 }
 
+Logger& Logger::when(bool cond) noexcept {
+    if(!cond)
+        m_mode = DIAGNOSTIC_SUPRESSED;
+    return *this;
+}
+
 Logger& Logger::operator<<(IntegerPrinter printer) noexcept {
     m_printer = printer;
     return *this;
@@ -63,7 +69,8 @@ Logger& Logger::operator<<(DiagnoseFlag flag) noexcept {
         case DIAGNOSTIC_ERROR:
             fputs("error: \n", stderr); break;
         case DIAGNOSTIC_WARNING:
-            fputs("warning: \n", stderr); break;
+            fputs("warning: \n", stderr);
+        default: break;
     }
     return *this;
 }

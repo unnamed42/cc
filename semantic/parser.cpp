@@ -392,48 +392,65 @@ Expr* Parser::conditionalExpr() {
     return result;
 }
 
-QualType Parser::typeSpecifier(StorageClass *stor) {
-    QualType ret{};
-    auto tok = get();
-    
+bool Parser::tryDeclSpecifier(QualType &type, StorageClass *stor, bool required) {
+    Token *tok;
     uint32_t qual = 0, spec = 0;
     
-    for(;;tok = get()) {
+    for(;;) {
+        tok = get();
         auto tokType = tok->type();
         if(isQualifier(tokType)) 
             qual = addQualifier(qual, tok);
-        else if(isTypeSpecifier(tokType))
+        else if(isTypeSpecifier(tokType)) {
+            if(!type.isNull())
+                derr.at(tok) << "unexpected token";
             spec = addSpecifier(spec, tok);
-        else if(isStorageClass(tokType)) {
+        } else if(isStorageClass(tokType)) {
             if(!stor) 
-            derr.at(tok) << "unexpected storage class specifier "
-                << static_cast<StorageClass>(tokType);
+                derr.at(tok) << "unexpected storage class specifier "
+                    << static_cast<StorageClass>(tokType);
             *stor = toStorageClass(tok);
-        } else if(tokType == KeyEnum)
-            ret.setBase(enumSpecifier());
-        else if(tokType == KeyStruct || tokType == KeyUnion)
-            ret.setBase(structUnionSpecifier());
-        else if(tokType == Identifier) {
+        } else if(tokType == KeyEnum) {
+            if(!spec) 
+                derr.at(tok) << "unexpected token";
+            type.setBase(enumSpecifier());
+        } else if(tokType == KeyStruct || tokType == KeyUnion) {
+            if(!spec) 
+                derr.at(tok) << "unexpected token";
+            type.setBase(structUnionSpecifier());
+        } else if(tokType == Identifier) {
+            if(spec || !type.isNull())
+                derr.at(tok) << "unexpected token";
             auto id = m_curr->find(tok);
-            if(id) 
-                ret = id->type()->clone();
+            if(!id || id->isType()) {
+                if(required)
+                    derr.at(tok) << tok << " does not name a type"; 
+                else 
+                    break;
+            }
+            type = id->type()->clone();
         } else
             break;
     }
     
-    if(!spec && !ret) 
-        derr.at(tok) << "unexpected token " << tok;
-    m_src.unget(tok);
-    if(spec && ret)
-        derr.at(tok) << "multiple data type specification";
-    else if(!ret) {
-        if(spec == Void) 
-            ret = makeVoidType();
-        else 
-            ret.reset(makeNumberType(spec));
-    }
-    ret.addQual(qual); // do not override typedef's qualifier
+    if(!spec && !type && required) 
+        derr.at(tok) << "unexpected token";
     
+    m_src.unget(tok);
+    if(!type) {
+        if(spec == Void) 
+            type = makeVoidType();
+        else 
+            type.reset(makeNumberType(spec));
+    }
+    type.addQual(qual); // do not override typedef's qualifier
+    
+    return !type.isNull();
+}
+
+QualType Parser::typeSpecifier(StorageClass *stor) {
+    QualType ret{};
+    tryDeclSpecifier(ret, stor, true);
     return ret;
 }
 
@@ -853,6 +870,124 @@ FuncType* Parser::paramTypeList(QualType ret) {
     return makeFuncType(ret, std::move(params), vaarg);
 }
 
+/*-----------------------------------------------------------.
+|   declaration                                              |
+|       : declaration_specifiers ';'                         |
+|       | declaration_specifiers init_declarator_list ';'    |
+|       ;                                                    |
+`-----------------------------------------------------------*/
+void Parser::declaration(StmtList &list, QualType type, StorageClass stor) {
+    auto tok = m_src.want(Semicolon);
+    if(tok) {
+        if(!type->toStruct() && !type->toEnum())
+            derr.at(tok) << "declaration does not declare anything";
+    } else {
+        initDeclarators(list, type, stor);
+        m_src.expect(Semicolon);
+    }
+}
+
+/*----------------------------------------------------./+--------------------------------------.
+|   init_declarator_list                              ||   init_declarator                     |
+|       : init_declarator                             ||       : declarator                    |
+|       | init_declarator_list ',' init_declarator    ||       | declarator '=' initializer    |
+|       ;                                             ||       ;                               |
+`----------------------------------------------------+/`--------------------------------------*/
+void Parser::initDeclarators(Utils::StmtList &list, QualType type, StorageClass stor) {
+    //init_list inits{};
+    do {
+        auto newType = type;
+        Token *name;
+        Expr *init = nullptr;
+        tryDeclarator(newType, name);
+        if(!name) 
+            derr.at(peek()) << "expecting an identifier";
+        if(m_src.nextIs(Assign)) 
+            init = initializer(type);
+        
+        auto &&decl = m_curr->declare(makeDecl(name, newType, stor));
+        decl->setInit(init);
+        list.pushBack(decl);
+    } while(m_src.nextIs(Comma));
+}
+
+/*----------------------------------------./+--------------------------------------------.
+|   initializer                           ||   initializer_list                          |
+|       : assignment_expression           ||       : initializer                         |
+|       | '{' initializer_list '}'        ||       | initializer_list ',' initializer    |
+|       | '{' initializer_list ',' '}'    ||       ;                                     |
+|       ;                                 |`--------------------------------------------+/
+`----------------------------------------*/
+Expr* Parser::initializer(QualType type) {
+    auto tok = get();
+    if(tok->is(BlockOpen)) {
+        if(type->toArray())
+            return arrayInitializer(type->toArray());
+        else if(type->toStruct())
+            return aggregateInitializer(type->toStruct());
+        else 
+            derr.at(tok) << "expecting an aggregate type";
+    } else if(tok->is(String) && type->toArray()) {
+        auto arrType = type->toArray();
+        auto elemType = arrType->base();
+        
+        auto &str = *tok->content();
+        if(!elemType->toNumber() && !elemType->toNumber()->isChar())
+            derr.at(tok) << "cannot initialize type" << type << "with string literal";
+        if(arrType->isComplete()) {
+            if(arrType->bound() <= str.size())
+                derr.at(tok) << "string is too long";
+        } else
+            arrType->setBound(str.size() + 1); // one extra for '\0'
+        
+        return nullptr; // TODO: return expression here
+    } else {
+        m_src.unget(tok);
+        return assignmentExpr();
+    }
+}
+
+Expr* Parser::arrayInitializer(ArrayType *type) {
+    unsigned index = 0, len = type->bound();
+    auto base = type->base();
+    
+    while(!m_src.nextIs(BlockClose)) {
+        if(m_src.nextIs(LeftSubscript)) {
+            auto offset = conditionalExpr();
+            auto index_ = evalLong(offset);
+            if(index_ < index) 
+                derr.at(offset->token()) << "invalid offset expression";
+            // TODO: insert elements
+            m_src.expect(RightSubscript);
+            m_src.expect(Assign);
+        }
+        initializer(base);
+        ++index;
+        if(!m_src.nextIs(Comma)) {
+            m_src.expect(BlockClose);
+            break;
+        }
+    }
+    
+    if(!type->isComplete())
+        type->setBound(index);
+    else if(len < index)
+        derr.at(peek()) << "excess element number";
+    
+    // TODO: return expression here
+}
+
+Expr* Parser::aggregateInitializer(StructType *type) {
+    if(!type->isComplete())
+        derr.at(peek()) << "initializer for incomplete struct";
+    
+    auto &&members = type->members();
+    auto it = members.begin();
+    while(!m_src.nextIs(BlockClose))
+        initializer((*it)->type()); // TODO: 
+    // TODO: return expression here
+}
+
 /*--------------------------------.
 |   statement                     |
 |       : labeled_statement       |
@@ -938,23 +1073,22 @@ CompoundStmt* Parser::compoundStatement(QualType func) {
 //    m_src.expect(BlockOpen); // extracted in caller function
     ScopeGuard guard{m_curr};
     
-//     if(func) {
-//         // insert parameters
-//         for(auto &&param: func->toFunc()->params())
-//             s->insert(param);
-//     }
-//     StmtList l{};
-//     for(;;) {
-//         auto peek = m_src.peek();
-//         if(peek->is(BlockClose)) {
-//             m_src.ignore();
-//             break;
-//         } else if(decl_peek(peek, m_curr)) 
-//             decl(l);
-//         else
-//             l.pushBack(statement());
-//     }
-//     return make_compound(s, std::move(l));
+    if(func) {
+        // insert parameters
+        for(auto param : func->toFunc()->params())
+            m_curr->declare(param);
+    }
+    
+    StmtList l{};
+    while(!m_src.nextIs(BlockClose)) {
+        QualType decl{};
+        StorageClass stor = Auto;
+        if(tryDeclSpecifier(decl, &stor))
+            declaration(l, decl, stor);
+        else
+            l.pushBack(statement());
+    }
+    return makeCompoundStmt(std::move(l));
 }
 
 /*----------------------------------------------------------.
@@ -1041,9 +1175,9 @@ CompoundStmt* Parser::forLoop() {
     LoopGuard  _{m_break, m_continue};
     ScopeGuard __{m_curr};
     
-    // after entering loop, `s` is the former `m_curr`
-    if(decl_peek(m_src.peek(), s))
-        decl(l);
+    QualType type{}; StorageClass stor = Auto;
+    if(tryDeclSpecifier(type, &stor))
+        declaration(l, type, stor);
     else if(!m_src.nextIs(Semicolon)) 
         l.pushBack(expr());
     
@@ -1117,7 +1251,7 @@ JumpStmt* Parser::jumpStatement() {
         case KeyReturn:
             if(!m_func)
                 error(tok, "Use \"return\" out of function");
-            if(m_src.peek()->m_attr == Semicolon)
+            if(m_src.peek(Semicolon))
                 res = make_return(m_func);
             else 
                 res = make_return(m_func, expr());

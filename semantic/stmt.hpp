@@ -11,8 +11,6 @@ class Expr;
 
 class Stmt {};
 
-class DeclStmt : public Stmt {};
-
 class CondStmt : public Stmt {};
 
 class CompoundStmt : public Stmt {};

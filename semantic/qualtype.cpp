@@ -11,7 +11,7 @@ using namespace Compiler;
 using namespace Compiler::Text;
 using namespace Compiler::Semantic;
 
-QualType::QualType() noexcept : QualType(nullptr, 0) {}
+constexpr QualType::QualType() noexcept : m_ptr(0) {}
 
 QualType::QualType(Type *type, uint32_t qual) noexcept {
     reset(type, qual);
@@ -88,7 +88,7 @@ QualType QualType::decay() noexcept {
         ptr = base.get();
     } else 
         return *this;
-    return {makePointerType(ptr), qual};
+    return QualType{ makePointerType(ptr), qual };
 }
 
 QualType::operator bool() const noexcept {

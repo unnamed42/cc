@@ -28,17 +28,21 @@ struct SourceLoc;
 
 enum DiagnoseFlag {
     DIAGNOSTIC_WARNING,
-    DIAGNOSTIC_ERROR
+    DIAGNOSTIC_ERROR,
+    DIAGNOSTIC_SUPRESSED,
 };
 
 class Logger {
     NO_COPY_MOVE(Logger);
     private:
         struct IntegerPrinter {
-            void (*printer)(uint32_t);
-            
-            IntegerPrinter(void(*p)(uint32_t)) noexcept : printer(p) {}
-            void operator()(uint32_t i) const { printer(i); }
+            private:
+                using Func = void(uint32_t);
+            public:
+                Func *func;
+                
+                IntegerPrinter(Func *f) noexcept : func(f) {}
+                void operator()(uint32_t i) const { func(i); }
         };
     public:
         static IntegerPrinter specifiers;
@@ -52,6 +56,12 @@ class Logger {
     public:
         explicit Logger(DiagnoseFlag flag = DIAGNOSTIC_WARNING) noexcept;
         ~Logger() noexcept(false);
+        
+        /**
+         * Supress exception when condition is not satisfied
+         * @param cond condition
+         */
+        self& when(bool cond) noexcept;
         
         self& operator<<(IntegerPrinter) noexcept;
         self& operator<<(uint32_t) noexcept;

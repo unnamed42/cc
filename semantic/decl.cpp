@@ -21,6 +21,7 @@ QualType Decl::type() noexcept { return m_type; }
 const UString& Decl::name() const noexcept { return *m_tok->content(); }
 StorageClass Decl::storageClass() const noexcept { return m_stor; }
 bool Decl::isType() const noexcept { return m_stor == Typedef; }
+void Decl::setInit(Expr *expr) noexcept { m_init = expr; }
 
 FuncDecl::FuncDecl(Token *tok, QualType type, StorageClass stor, DeclList &&params) noexcept 
     : Decl(tok, type, stor), m_params(move(params)) {}
