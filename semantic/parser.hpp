@@ -27,6 +27,7 @@ class QualType;
 class StructType;
 class FuncType;
 class EnumType;
+class ArrayType;
 
 class Decl;
 
