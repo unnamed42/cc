@@ -18,6 +18,11 @@
         NO_COPY(classname); \
         NO_MOVE(classname)
 
+/**
+ * Just like std::declval(). Must only be used in unevaluated-contexts.
+ */
+#define FAKE_INSTANCE(type) (*static_cast<type*>(nullptr))
+
 namespace Compiler {
 
 template <class T> struct removeRef { using type = T; };

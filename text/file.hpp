@@ -9,7 +9,7 @@ namespace Compiler {
 namespace Text {
 
 class UChar;
-class UString;
+class Buffer;
 
 class File {
     NO_COPY_MOVE(File);
@@ -134,7 +134,7 @@ class File {
         explicit operator bool();
         
         self& operator>>(UChar &result);
-        self& operator>>(UString &result);
+        self& operator>>(Buffer &result);
 };
 
 } // namespace Text

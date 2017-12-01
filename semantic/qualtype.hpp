@@ -15,7 +15,7 @@ class QualType {
     private:
         uintptr_t m_ptr;
     public:
-        constexpr QualType() noexcept;
+        QualType() noexcept;
         QualType(Type *type, uint32_t qual = 0) noexcept;
         QualType(const self &other) noexcept;
         

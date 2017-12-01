@@ -16,6 +16,7 @@ set(UTILS_FILES
 
 set(TEXT_FILES 
         text/uchar.hpp text/uchar.cpp
+        text/buffer.hpp text/buffer.cpp
         text/ustring.hpp text/ustring.cpp
         text/file.hpp text/file.cpp
         text/stream.hpp text/stream.cpp)

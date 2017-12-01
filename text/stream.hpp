@@ -55,7 +55,7 @@ class Stream {
          */
         void ignore(UChar ch) noexcept;
         
-        UString getline();
+        //UString getline();
         
         void skipLine() noexcept;
         

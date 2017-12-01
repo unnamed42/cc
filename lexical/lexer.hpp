@@ -3,6 +3,7 @@
 
 #include "common.hpp"
 #include "text/stream.hpp"
+#include "text/buffer.hpp"
 
 namespace Compiler {
 
@@ -20,16 +21,12 @@ enum TokenType : uint32_t;
 class Lexer {
     NO_COPY_MOVE(Lexer);
     private:
-        using Stream    = Text::Stream;
-        using UChar     = Text::UChar;
-        using UString   = Text::UString;
-        using SourceLoc = Diagnostic::SourceLoc;
-        using PosType   = typename SourceLoc::PosType;
-    private:
         /**< text source. */
-        Stream  m_src;
+        Text::Stream                   m_src;
+        /**< string buffer */
+        Text::Buffer                   m_buf{};
         /**< beginning position of current parsing token. */
-        PosType m_pos;
+        Diagnostic::SourceLoc::PosType m_pos = 1;
     public:
         /**
          * Initialize m_src with file stream, using a file located at given path.
@@ -57,14 +54,14 @@ class Lexer {
          * @param ch the first character of this token
          * @return a token object.
          */
-        Token* getNumber(UChar ch);
+        Token* getNumber(Text::UChar ch);
         
         /**
          * Extract a token that is an identifier.
          * @param ch the first character of this token
          * @return a token object.
          */
-        Token* getIdentifier(UChar ch);
+        Token* getIdentifier(Text::UChar ch);
         
         /**
          * Extract a token that is a character.
@@ -85,34 +82,34 @@ class Lexer {
          * @param len length of this codepoint
          * @return the codepoint.
          */
-        UChar getUCN(unsigned len);
+        Text::UChar getUCN(unsigned len);
         
         /**
          * Get a character escape sequence.
          * Before executing this function, a \ must have been extracted.
          * @return real value of corresponding escape sequence.
          */
-        UChar getEscapedChar();
+        Text::UChar getEscapedChar();
         
         /**
          * Get an escaped character encoded as hexadecimal
          * @return real value of that escaped character.
          */
-        UChar getHexChar();
+        Text::UChar getHexChar();
         
         /**
          * Get an escaped character encoded as octal
          * @param ch the first character of that sequence
          * @return real value of that escaped character.
          */
-        UChar getOctChar(UChar ch);
+        Text::UChar getOctChar(Text::UChar ch);
         
         /**
          * Extract a digraph.
          * @param ch the first character of this digraph
          * @return a token object.
          */
-        Token* getDigraph(UChar ch);
+        Token* getDigraph(Text::UChar ch);
         
         /**
          * Construct a token with given token type attribute.
@@ -127,14 +124,14 @@ class Lexer {
          * @param content content of this token
          * @return a constructed token object
          */
-        Token* makeToken(TokenType type, UString &content);
+        Token* makeToken(TokenType type, Text::UString *content);
         
         /**
          * Record new token's beginning position
          */
         void logPos();
         
-        const SourceLoc* sourceLoc() const noexcept;
+        const Diagnostic::SourceLoc* sourceLoc() const noexcept;
 };
 
 } // namespace Lexical

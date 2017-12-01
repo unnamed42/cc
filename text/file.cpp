@@ -1,6 +1,6 @@
 #include "text/file.hpp"
 #include "text/uchar.hpp"
-#include "text/ustring.hpp"
+#include "text/buffer.hpp"
 
 #include <cassert>
 
@@ -175,10 +175,9 @@ File& File::operator>>(UChar &ch) {
     return *this;
 }
 
-File& File::operator>>(UString &str) {
-    str.clear();
+File& File::operator>>(Buffer &buf) {
     UChar temp;
     while(operator>>(temp))
-        str += temp;
+        buf.append(temp);
     return *this;
 }

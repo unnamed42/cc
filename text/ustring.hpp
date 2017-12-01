@@ -1,37 +1,43 @@
 #ifndef USTRING_HPP
 #define USTRING_HPP
 
-#include "text/uchar.hpp"
-#include "utils/vector.hpp"
-
-extern template class Compiler::Utils::Vector<Compiler::Text::UChar>;
+#include <cstdint>
 
 namespace Compiler {
 namespace Text {
 
-class UString : public Utils::Vector<UChar> {
+class UChar;
+
+class UString {
+    friend class Buffer;
     private:
         using self = UString;
-        using base = Utils::Vector<UChar>;
+    private:
+        /**< length of string */
+        uint16_t m_slen;
+        /**< length of data */
+        uint16_t m_dlen;
+        /**< hack to store data */
+        uint8_t  m_data[0];
     public:
-        using base::base;
-        UString(const char*);
+        /**
+         * @return length of string
+         */
+        uint16_t length() const noexcept;
         
-        UString* toHeap();
+        /**
+         * @return data in bytes
+         */
+        uint16_t dataLength() const noexcept;
         
-        self& append(char ch);
-        self& append(UChar ch);
-        self& append(const char *str);
-        self& append(const self &other);
+        const uint8_t* data() const noexcept;
         
-        self& operator+=(char);
-        self& operator+=(UChar);
-        self& operator+=(const self&);
-        self& operator+=(const char*);
-        self  operator+(char) const;
-        self  operator+(UChar) const;
-        self  operator+(const self&) const;
-        self  operator+(const char*) const;
+        /**
+         * Create a new string with the new character appended at the end
+         * @param ch character to be added
+         */
+        self& operator+(UChar ch) const;
+        self& operator+(char ch) const;
         
         bool operator==(const self &other) const noexcept;
         bool operator!=(const self &other) const noexcept;

@@ -1,4 +1,5 @@
 #include "utils/mempool.hpp"
+#include "text/uchar.hpp"
 #include "text/ustring.hpp"
 #include "lexical/token.hpp"
 #include "lexical/tokentype.hpp"
@@ -105,7 +106,15 @@ ConstantExpr* impl::makeString(Token *tok) {
 }
 
 ConstantExpr* impl::makeChar(Token *tok) {
-    return new (pool) ConstantExpr(tok, makeNumberValue(tok->content()->front()));
+    auto str = tok->content();
+    auto data = str->data();
+    auto bytes = str->dataLength();
+    UChar::ValueType val = 0;
+    while(bytes--) {
+        val <<= 8;
+        val |= *(data++);
+    }
+    return new (pool) ConstantExpr(tok, makeNumberValue(val));
 }
 
 UnaryExpr* impl::makeUnary(Token *tok, OpCode op, Expr *expr) {

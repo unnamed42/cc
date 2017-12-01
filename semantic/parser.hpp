@@ -3,6 +3,7 @@
 
 #include "common.hpp"
 #include "lexical/pp.hpp"
+#include "semantic/qualtype.hpp"
 
 namespace Compiler {
 
@@ -23,7 +24,6 @@ class Expr;
 class ObjectExpr;
 class ConstantExpr;
 
-class QualType;
 class StructType;
 class FuncType;
 class EnumType;

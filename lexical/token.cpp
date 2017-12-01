@@ -25,9 +25,9 @@ void ContentToken::print(Logger &log) const { log << *content_; }
 const UString* ContentToken::content() const noexcept { return content_; }
 
 Token* impl::makeToken(SourceLoc *source, TokenType type) {
-    return new (pool.allocate(sizeof(Token))) Token(source, type);
+    return new (pool) Token(source, type);
 }
 
 Token* impl::makeToken(SourceLoc *source, TokenType type, UString *str) {
-    return new (pool.allocate(sizeof(ContentToken))) ContentToken(source, type, str);
+    return new (pool) ContentToken(source, type, str);
 }

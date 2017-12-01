@@ -1,4 +1,5 @@
 #include "utils/mempool.hpp"
+#include "text/buffer.hpp"
 #include "text/uchar.hpp"
 #include "text/ustring.hpp"
 #include "lexical/tokentype.hpp"
@@ -22,7 +23,7 @@ static inline bool isOneOf(char c, const char *str) noexcept {
     return false;
 }
 
-Lexer::Lexer(const char *path) : m_src(path), m_pos(1) {}
+Lexer::Lexer(const char *path) : m_src(path) {}
 
 // Lexer::Lexer(const UString &src)
 //     : m_src(src.c_str(), nullptr) {}
@@ -35,11 +36,11 @@ Token* Lexer::makeToken(TokenType type) {
     return ::makeToken(loc, type);
 }
 
-Token* Lexer::makeToken(TokenType type, UString &content) {
+Token* Lexer::makeToken(TokenType type, UString *content) {
     auto loc = m_src.sourceLoc().clone();
     loc->length = m_src.pos() - m_pos;
     loc->column -= loc->length;
-    return ::makeToken(loc, type, content.toHeap());
+    return ::makeToken(loc, type, content);
 }
 
 void Lexer::logPos() {
@@ -183,7 +184,7 @@ Token* Lexer::getDigraph(UChar ch) {
 
 Token* Lexer::getNumber(UChar ch) {
     bool maybe_float = (ch == '.');
-    UString ret{ch, 1};
+    m_buf.append(ch);
     auto last = ch;
     for (;;) {
         ch = m_src.get();
@@ -193,21 +194,21 @@ Token* Lexer::getNumber(UChar ch) {
             m_src.unget();
             break;
         }
-        ret += ch;
+        m_buf.append(ch);
         last = ch;
     }
-    return makeToken(maybe_float ? PPFloat : PPNumber, ret);
+    return makeToken(maybe_float ? PPFloat : PPNumber, m_buf.finish());
 }
 
 Token* Lexer::getIdentifier(UChar ch) {
-    UString ret{ch, 1};
+    m_buf.append(ch);
     while(m_src >> ch) {
         switch(ch) {
             case 'a' ... 'z': case 'A' ... 'Z':
             case '0' ... '9': case 0x80000000 ... 0xffffffff:
-                ret += ch; break;
-            case '\\': if(m_src.want('u')) ret += getUCN(4);
-                       else if(m_src.want('U')) ret += getUCN(8);
+                m_buf.append(ch); break;
+            case '\\': if(m_src.want('u')) m_buf.append(getUCN(4));
+                       else if(m_src.want('U')) m_buf.append(getUCN(8));
                        else {
             default:       m_src.unget();
                            goto endloop;
@@ -215,17 +216,16 @@ Token* Lexer::getIdentifier(UChar ch) {
         }
     }
     endloop:
-    return makeToken(Identifier, ret);
+    return makeToken(Identifier, m_buf.finish());
 }
 
 Token* Lexer::getChar() {
-    UString ret{};
     UChar ch;
     while(m_src >> ch) {
         if(ch == '\'') break;
-        if(ch == '\\') ret += getEscapedChar();
+        if(ch == '\\') m_buf.append(getEscapedChar());
     }
-    return makeToken(Character, ret);
+    return makeToken(Character, m_buf.finish());
 }
 
 Token* Lexer::getString() {
@@ -233,9 +233,9 @@ Token* Lexer::getString() {
     UChar ch;
     while(m_src >> ch) {
         if(ch == '\"') break;
-        if(ch == '\\') ret += getEscapedChar();
+        if(ch == '\\') m_buf.append(getEscapedChar());
     }
-    return makeToken(String, ret);
+    return makeToken(String, m_buf.finish());
 }
 
 UChar Lexer::getEscapedChar() {

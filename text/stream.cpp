@@ -103,13 +103,13 @@ void Stream::ignore(UChar ch) noexcept {
     }
 }
 
-UString Stream::getline() {
-    UString result{};
-    UChar c;
-    while(!(c = get()).invalid())
-        result += c;
-    return result;
-}
+// UString Stream::getline() {
+//     UString result{};
+//     UChar c;
+//     while(!(c = get()).invalid())
+//         result += c;
+//     return result;
+// }
 
 void Stream::skipLine() noexcept {
     ignore('\n');

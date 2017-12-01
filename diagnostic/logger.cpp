@@ -142,8 +142,7 @@ Logger& Logger::operator<<(const UChar &uc) noexcept {
 }
 
 Logger& Logger::operator<<(const UString &us) noexcept {
-    for(auto &&uc : us) 
-        operator<<(uc);
+    fwrite(us.data(), us.dataLength(), 1, stdout);
     return *this;
 }
 

@@ -935,10 +935,10 @@ Expr* Parser::initializer(QualType type) {
         if(!elemType->toNumber() && !elemType->toNumber()->isChar())
             derr.at(tok) << "cannot initialize type" << type << "with string literal";
         if(arrType->isComplete()) {
-            if(arrType->bound() <= str.size())
+            if(arrType->bound() <= str.dataLength())
                 derr.at(tok) << "string is too long";
         } else
-            arrType->setBound(str.size() + 1); // one extra for '\0'
+            arrType->setBound(str.dataLength() + 1); // one extra for '\0'
         
         return nullptr; // TODO: return expression here
     } else {
@@ -1250,7 +1250,7 @@ JumpStmt* Parser::jumpStatement() {
             break;
         case KeyReturn:
             if(!m_func)
-                error(tok, "Use \"return\" out of function");
+                derr.at(tok) << "Use \"return\" out of function";
             if(m_src.peek(Semicolon))
                 res = make_return(m_func);
             else 

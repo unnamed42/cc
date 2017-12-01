@@ -10,7 +10,7 @@ using namespace Compiler::Utils;
 using namespace Compiler::Lexical;
 using namespace Compiler::Semantic;
 
-static UString taggedName(const UString &name) {
+static UString& taggedName(const UString &name) {
     return name + '+';
 }
 

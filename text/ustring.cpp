@@ -1,113 +1,75 @@
 #include "utils/mempool.hpp"
-#include "text/uchar.hpp"
 #include "text/ustring.hpp"
+#include "text/uchar.hpp"
 
-#include <cstdlib>
-#include <cassert>
 #include <cstring>
-#include <iterator>
-
-namespace impl = Compiler::Text;
+#include <functional>
 
 using namespace Compiler::Text;
 using namespace Compiler::Utils;
 
-template class Compiler::Utils::Vector<UChar>;
+uint16_t UString::length() const noexcept {
+    return m_slen;
+}
 
-template <class T>
-static inline void swap(T &a, T &b) {
-    T temp{};
-    temp = a; a = b; b = temp;
+uint16_t UString::dataLength() const noexcept {
+    return m_dlen;
+}
+
+const uint8_t* UString::data() const noexcept {
+    return m_data;
+}
+
+UString& UString::operator+(UChar ch) const {
+    int count = 0;
+    UChar::ValueType val = ch;
+    
+    while(!(val & 0xff000000)){
+        val <<= 8;
+        ++count;
+    }
+    count = 4 - count; // bytes occupied by ch
+    
+    void *mem = new (pool) uint8_t[m_dlen + count];
+    auto ret = static_cast<UString*>(mem);
+    memcpy(ret, this, sizeof(UString) + m_dlen);
+    
+    while(val) {
+        ret->m_data[ret->m_dlen++] = static_cast<uint8_t>(val >> 24);
+        val <<= 8;
+    }
+    ++ret->m_slen;
+    
+    return *ret;
+}
+
+UString& UString::operator+(char ch) const {
+    void *mem = new (pool) uint8_t[m_dlen + 1];
+    auto ret = static_cast<UString*>(mem);
+    memcpy(ret, this, sizeof(UString) + m_dlen);
+    
+    ret->m_data[ret->m_dlen++] = ch;
+    ++ret->m_slen;
+    
+    return *ret;
+}
+
+bool UString::operator==(const self &o) const noexcept {
+    return m_dlen == o.m_dlen && m_slen == o.m_slen && !memcmp(m_data, o.m_data, m_dlen);
+}
+
+bool UString::operator!=(const self &o) const noexcept {
+    return !operator==(o);
 }
 
 std::size_t std::hash<UString>::operator()(const UString &str) const {
-    std::size_t hash;
-    for(unsigned i : str)
-        hash = (hash + (324723947 + i)) ^ 93485734985;
-    return hash;
-}
-
-UString::UString(const char *source) : UString() {
-    append(source);
-}
-
-UString* UString::toHeap() {
-    return static_cast<UString*>(base::toHeap());
-}
-
-UString& UString::append(char ch) {
-    pushBack(UChar(ch));
-    return *this;
-}
-
-UString& UString::append(UChar ch) {
-    pushBack(ch);
-    return *this;
-}
-
-UString& UString::append(const self &other) {
-    reserve(m_cap + other.m_len);
-    memcpy(m_data + m_len, other.m_data, other.m_len * sizeof(*m_data));
-    return *this;
-}
-
-UString& UString::append(const char *str) {
-    while(*str) {
-        UChar ch{str};
-        str += ch.bytes();
-        pushBack(ch);
+    size_t result = 0;
+    constexpr size_t prime = 31;
+    auto data = str.data();
+    int len = str.dataLength();
+    for (int i = 0; i < len; ++i) {
+        result *= prime;
+        result += data[i];
     }
-    return *this;
-}
-
-UString& UString::operator+=(char ch) {
-    return append(ch);
-}
-
-UString& UString::operator+=(UChar ch) {
-    return append(ch);
-}
-
-UString& UString::operator+=(const self &other) {
-    return append(other);
-}
-
-UString& UString::operator+=(const char *str) {
-    return append(str);
-}
-
-UString UString::operator+(char ch) const {
-    return UString{*this} += ch;
-}
-
-UString UString::operator+(UChar ch) const {
-    return UString{*this} += ch;
-}
-
-UString UString::operator+(const self &other) const {
-    return UString{*this} += other;
-}
-
-UString UString::operator+(const char *str) const {
-    return UString{*this} += str;
-}
-
-bool UString::operator==(const UString &other) const noexcept {
-    if(m_len != other.m_len)
-        return false;
-    for(auto i=0U; i<m_len; ++i) {
-        if(at(i) != other.at(i))
-            return false;
-    }
-    return true;
-}
-
-bool UString::operator!=(const UString &other) const noexcept {
-    if(m_len != other.m_len)
-        return true;
-    for(auto i=0U; i<m_len; ++i) {
-        if(at(i) == other.at(i))
-            return true;
-    }
-    return false;
+    return result;
 }

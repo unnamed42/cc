@@ -11,7 +11,7 @@ using namespace Compiler;
 using namespace Compiler::Text;
 using namespace Compiler::Semantic;
 
-constexpr QualType::QualType() noexcept : m_ptr(0) {}
+QualType::QualType() noexcept : m_ptr(0) {}
 
 QualType::QualType(Type *type, uint32_t qual) noexcept {
     reset(type, qual);
