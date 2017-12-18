@@ -146,7 +146,7 @@ BinaryExpr* impl::makeMemberAccess(Token *op, Expr *base, Token *member) {
     auto members = baseStruct->members();
     auto id = members.begin(), end = members.end();
     while(id != end) {
-        if((*id)->token()->content() == member->content()) 
+        if(id->token()->content() == member->content()) 
             break;
         ++id;
     }
@@ -159,7 +159,7 @@ BinaryExpr* impl::makeMemberAccess(Token *op, Expr *base, Token *member) {
      * If the first expression is a pointer to a qualified type, the result has 
      * the so-qualified version of the type of the designated member.
      */
-    auto resType = (*id)->type();
+    auto resType = id->type();
     resType.addQual(baseType.qual());
     // FIXME: member expr 
     return new (pool) BinaryExpr(op, access, base, nullptr);
@@ -182,11 +182,11 @@ CallExpr* impl::makeCall(Token *tok, FuncDecl *func, Utils::ExprList &&args) {
     
     for(; param != paramEnd; ++param, ++arg) {
         if(arg == argEnd) 
-            derr.at(*arg) << "too few arguments";
-        *arg = tryCast(*arg, (*param)->type());
+            derr.at(arg.get()) << "too few arguments";
+        arg.set(tryCast(arg.get(), param->type()));
     }
     if(param == paramEnd && arg != argEnd && !funcType->isVaArgs())
-        derr.at(*arg) << "too many arguments";
+        derr.at(arg.get()) << "too many arguments";
     
     return new (pool) CallExpr(func, move(args));
 }

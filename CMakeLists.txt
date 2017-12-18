@@ -11,7 +11,7 @@ set(COMMON_FILES main.cpp common.hpp)
 
 set(UTILS_FILES 
         utils/iterator.hpp
-        utils/vector.hpp utils/vector.cpp
+        utils/ptrlist.hpp utils/ptrlist.cpp
         utils/mempool.hpp utils/mempool.cpp)
 
 set(TEXT_FILES 

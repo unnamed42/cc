@@ -1,84 +1,71 @@
 #ifndef ITERATOR_HPP
 #define ITERATOR_HPP
 
+#include <iterator>
+
 namespace Compiler {
 namespace Utils {
 
-template <class> class Iterator;
-template <class> class ConstIterator;
-
-template <class T>
-class Iterator<T*> {
-    private:
-        using self = Iterator<T*>;
-    public:
-        using difference_type = decltype((int*)(0) - (int*)(0));
-        using value_type      = T;
-        using pointer         = T*;
-        using reference       = T&;
-    private:
-        pointer m_cursor;
-    public:
-        explicit Iterator(pointer p) : m_cursor(p) {}
-        Iterator(const self &other) : m_cursor(other.m_cursor) {}
-
-        self& operator++()     noexcept { ++m_cursor; return *this; }
-        self  operator++(int)  noexcept { auto it = *this; ++m_cursor; return it; }
-        self& operator--()     noexcept { --m_cursor; return *this; }
-        self  operator--(int)  noexcept { auto it = *this; --m_cursor; return it; }
-        pointer   operator->() noexcept { return m_cursor; }
-        reference operator*()  noexcept { return *m_cursor; }
-
-        self& operator+=(difference_type diff) noexcept { m_cursor += diff; return *this; }
-        self  operator+(difference_type diff)  noexcept { return self{m_cursor} += diff; }
-        self& operator-=(difference_type diff) noexcept { return *this += -diff; }
-        self  operator-(difference_type diff)  noexcept { return self{m_cursor} -= diff; }
-
-        bool operator==(const self &other) const noexcept { return m_cursor == other.m_cursor; }
-        bool operator!=(const self &other) const noexcept { return !operator==(other); }
-        bool operator<(const self &other)  const noexcept { return m_cursor < other.m_cursor; }
-        bool operator>(const self &other)  const noexcept { return m_cursor > other.m_cursor; }
-        bool operator<=(const self &other) const noexcept { return !operator>(other); }
-        bool operator>=(const self &other) const noexcept { return !operator<(other); }
+class IteratorCore {
+    template <class I, class V, class T, class P, class R, class D> 
+    friend class IteratorFacade;
+    
+    template <class It>
+    static It& increment(It &i) { i.increment(); return i; }
+    
+    template <class It>
+    static It& decrement(It &i) { i.decrement(); return i; }
+    
+    template <class It>
+    static typename It::pointer get(It &i) { return i.get(); }
+    
+    template <class It>
+    static typename It::difference_type compare(const It &lhs, const It &rhs) { return lhs.compare(rhs); }
+    
+    template <class It>
+    static It& advance(It &it, typename It::difference_type diff) { it.advance(diff); return it; }
 };
 
-template <class T>
-class ConstIterator<Iterator<T>> {
-    private:
-        using self = ConstIterator;
-        using base = Iterator<T>;
+template <class It, class ValueT, 
+          class Tag = std::forward_iterator_tag, 
+          class PtrT = ValueT*, class RefT = ValueT&, class DiffT = std::ptrdiff_t>
+class IteratorFacade {
     public:
-        using difference_type = typename base::difference_type;
-        using value_type      = typename base::value_type;
-        using pointer         = const value_type*;
-        using reference       = const value_type&;
-    private:
-        base m_cursor;
+        using value_type        = ValueT;
+        using pointer           = PtrT;
+        using reference         = RefT;
+        using iterator_category = Tag;
+        using difference_type   = DiffT;
     public:
-        explicit ConstIterator(const base &b) : m_cursor(b) {}
-        explicit ConstIterator(value_type *p) : m_cursor(p) {}
-        ConstIterator(const self &other) : m_cursor(other.m_cursor) {}
-        
-        base get() noexcept { return m_cursor; }
-        
-        self& operator++()     noexcept { ++m_cursor; return *this; }
-        self  operator++(int)  noexcept { auto it = *this; ++m_cursor; return it; }
-        self& operator--()     noexcept { --m_cursor; return *this; }
-        self  operator--(int)  noexcept { auto it = *this; --m_cursor; return it; }
-        pointer   operator->() noexcept { return m_cursor.operator->(); }
-        reference operator*()  noexcept { return *m_cursor; }
-        
-        self& operator+=(difference_type diff) noexcept { m_cursor += diff; return *this; }
-        self  operator+(difference_type diff)  noexcept { return self{m_cursor} += diff; }
-        self& operator-=(difference_type diff) noexcept { return *this += -diff; }
-        self  operator-(difference_type diff)  noexcept { return self{m_cursor} -= diff; }
-        
-        bool operator==(const self &other) const noexcept { return m_cursor == other.m_cursor; }
-        bool operator!=(const self &other) const noexcept { return !operator==(other); }
-        bool operator<(const self &other)  const noexcept { return m_cursor < other.m_cursor; }
-        bool operator>(const self &other)  const noexcept { return m_cursor > other.m_cursor; }
-        bool operator<=(const self &other) const noexcept { return !operator>(other); }
-        bool operator>=(const self &other) const noexcept { return !operator<(other); }
+        It& operator++()    { return IteratorCore::increment(iterator()); }
+        It  operator++(int) { It &i = iterator(), copy{i}; IteratorCore::increment(i); return copy; }
+
+        It& operator--()    { return IteratorCore::decrement(iterator()); }
+        It  operator--(int) { It &i = iterator(), copy{i}; IteratorCore::decrement(i); return copy; }
+
+        It& operator+=(difference_type d) { return IteratorCore::advance(iterator(), d);}
+        It  operator+(difference_type d)  { It copy = iterator(); return IteratorCore::advance(copy, d); }
+
+        It& operator-=(difference_type d) { return IteratorCore::advance(iterator(), -d); }
+        It  operator-(difference_type d)  { It copy = iterator(); return IteratorCore::advance(copy, -d); }
+
+        difference_type operator-(const It &o) const { return IteratorCore::compare(iterator(), o); }
+
+        pointer   operator->() { return IteratorCore::get(iterator()); }
+        reference operator*()  { return *IteratorCore::get(iterator()); }
+
+#define DEPLOY_OPERATOR(op) \
+    bool operator op(const It &o) const { return IteratorCore::compare(iterator(), o) op 0; }
+        DEPLOY_OPERATOR(==)
+        DEPLOY_OPERATOR(!=)
+        DEPLOY_OPERATOR(<)
+        DEPLOY_OPERATOR(>)
+        DEPLOY_OPERATOR(<=)
+        DEPLOY_OPERATOR(>=)
+#undef DEPLOY_OPERATOR
+    private:
+        It&       iterator()       noexcept { return *static_cast<It*>(this); }
+        const It& iterator() const noexcept { return *static_cast<const It*>(this); }
 };
 
 } // namespace Utils

@@ -1,7 +1,7 @@
 #ifndef DECL_HPP
 #define DECL_HPP
 
-#include "utils/vector.hpp"
+#include "utils/ptrlist.hpp"
 #include "semantic/stmt.hpp"
 #include "semantic/qualtype.hpp"
 #include "semantic/typeenum.hpp"

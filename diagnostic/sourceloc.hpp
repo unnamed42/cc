@@ -24,7 +24,9 @@ struct SourceLoc {
     unsigned length = 0;
     
     SourceLoc() noexcept = default;
-    SourceLoc(const char *path, FILE *file) noexcept;
+    
+    SourceLoc(const char *path, FILE *file) noexcept
+        : path(path), file(file) {}
     
     /**
      * Make a clone of this object

@@ -1,7 +1,7 @@
 #ifndef TYPE_HPP
 #define TYPE_HPP
 
-#include "utils/vector.hpp"
+#include "utils/ptrlist.hpp"
 #include "semantic/qualtype.hpp"
 
 #include <cstdint>

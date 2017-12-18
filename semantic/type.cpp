@@ -168,7 +168,7 @@ bool StructType::isCompatible(Type *other) noexcept {
         if(otherMember == otherEnd)
             return false;
         // different name is allowed?
-        if(member->type()->isCompatible((*otherMember)->type()))
+        if(member.type()->isCompatible(otherMember->type()))
             return false;
     }
     return true;
@@ -178,7 +178,7 @@ unsigned StructType::size()  const noexcept {
     if(!isComplete()) 
         return ret;
     for(auto member : *m_members)
-        ret += member->type()->size();
+        ret += member.type()->size();
     return ret;
 }
 unsigned StructType::align() const noexcept { return size(); }
@@ -190,7 +190,7 @@ void StructType::print(Logger &log) const {
         return;
     log << '{';
     for(auto member : *m_members) 
-        log << member->type() << ' ' << member->token() << ';';
+        log << member.type() << ' ' << member.token() << ';';
     log << '}';
 }
 
@@ -222,7 +222,7 @@ bool FuncType::isCompatible(Type *other) noexcept {
     
     auto otherParam = otherParams.begin();
     for(auto &&param : params) {
-        if(!param->type()->isCompatible((*otherParam)->type()))
+        if(!param.type()->isCompatible(otherParam->type()))
             return false;
     }
     return true;
@@ -235,7 +235,7 @@ void FuncType::print(Logger &log) const {
             log << ", ";
             first = false;
         }
-        log << param->type();
+        log << param.type();
     }
     if(isVaArgs()) {
         if(!first)

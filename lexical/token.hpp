@@ -24,26 +24,32 @@ class Token {
         TokenType              m_type;
     public:
         Token() noexcept = default;
-        Token(Diagnostic::SourceLoc*, TokenType) noexcept;
         virtual ~Token() = default;
         
-        bool is(TokenType type) const noexcept;
-        const Diagnostic::SourceLoc* sourceLoc() const noexcept;
-        TokenType type() noexcept;
+        Token(Diagnostic::SourceLoc *loc, TokenType type) noexcept
+            : m_loc(loc), m_type(type) {}
+        
+        inline bool is(TokenType type) const noexcept { return m_type == type; }
+        
+        inline const Diagnostic::SourceLoc* sourceLoc() const noexcept { return m_loc; }
+        
+        inline TokenType type() noexcept { return m_type; }
         
         virtual void print(Diagnostic::Logger&) const;
         
-        virtual const Text::UString* content() const noexcept;
+        virtual const Text::UString* content() const noexcept { return nullptr; }
 };
 
 class ContentToken : public Token {
     private:
-        Text::UString *content_;
+        Text::UString *m_content;
     public:
         using Token::Token;
-        ContentToken(Diagnostic::SourceLoc*, TokenType, Text::UString*);
         
-        const Text::UString* content() const noexcept override;
+        ContentToken(Diagnostic::SourceLoc *loc, TokenType type, Text::UString *content) noexcept 
+            : Token(loc, type), m_content(content) {}
+        
+        const Text::UString* content() const noexcept override { return m_content; }
         
         void print(Diagnostic::Logger&) const override;
 };
