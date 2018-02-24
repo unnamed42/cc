@@ -10,6 +10,7 @@ namespace Compiler {
 
 namespace Diagnostic {
 struct SourceLoc;
+class Logger;
 }
 namespace Text {
 class UString;
@@ -36,19 +37,24 @@ class Decl : public Stmt {
     public:
         Decl(Lexical::Token*, QualType, StorageClass) noexcept;
         virtual ~Decl() = default;
-        
+
         Lexical::Token* token() noexcept;
         const Text::UString& name() const noexcept;
         const Diagnostic::SourceLoc* sourceLoc() const noexcept;
         QualType type() noexcept;
         StorageClass storageClass() const noexcept;
-        
+
         bool isType() const noexcept;
-        
+
         void setInit(Expr*) noexcept;
-        
+
         virtual FuncDecl* toFuncDecl() noexcept;
         virtual EnumDecl* toEnumDecl() noexcept;
+};
+
+class StructDecl : public Decl {
+    private:
+        Utils::DeclList *m_members;
 };
 
 class FuncDecl : public Decl {
@@ -57,14 +63,14 @@ class FuncDecl : public Decl {
         CompoundStmt    *m_body;
     public:
         FuncDecl(Lexical::Token*, QualType, StorageClass stor, Utils::DeclList&&) noexcept;
-        
+
         FuncDecl* toFuncDecl() noexcept override;
-        
+
         Utils::DeclList& params() noexcept;
-        
+
         CompoundStmt* body() noexcept;
         void          setBody(CompoundStmt*) noexcept;
-        
+
         void updateSignature(QualType) noexcept;
 };
 
@@ -73,9 +79,9 @@ class EnumDecl : public Decl {
         int m_val;
     public:
         EnumDecl(Lexical::Token*, int val) noexcept;
-        
+
         EnumDecl* toEnumDecl() noexcept override;
-        
+
         int value() const noexcept;
 };
 

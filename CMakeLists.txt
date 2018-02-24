@@ -9,23 +9,23 @@ include_directories(${${PROJECT_NAME}_SOURCE_DIR})
 
 set(COMMON_FILES main.cpp common.hpp)
 
-set(UTILS_FILES 
+set(UTILS_FILES
         utils/iterator.hpp
         utils/ptrlist.hpp utils/ptrlist.cpp
         utils/mempool.hpp utils/mempool.cpp)
 
-set(TEXT_FILES 
+set(TEXT_FILES
         text/uchar.hpp text/uchar.cpp
         text/buffer.hpp text/buffer.cpp
         text/ustring.hpp text/ustring.cpp
         text/file.hpp text/file.cpp
         text/stream.hpp text/stream.cpp)
 
-set(DIAGNOSTIC_FILES 
+set(DIAGNOSTIC_FILES
         diagnostic/logger.hpp diagnostic/logger.cpp
         diagnostic/sourceloc.hpp diagnostic/sourceloc.cpp)
 
-set(LEXICAL_FILES 
+set(LEXICAL_FILES
         lexical/tokentype.hpp lexical/tokentype.cpp
         lexical/token.hpp lexical/token.cpp
         lexical/lexer.hpp lexical/lexer.cpp
@@ -42,11 +42,11 @@ set(SEMANTIC_FILES
         semantic/scope.hpp semantic/scope.cpp
         semantic/parser.hpp semantic/parser.cpp)
 
-set(CONSTEXPR_FILES 
+set(CONSTEXPR_FILES
         constexpr/value.hpp constexpr/value.cpp
         constexpr/evaluator.hpp constexpr/evaluator.cpp)
 
-set(SOURCE_FILES 
+set(SOURCE_FILES
         ${COMMON_FILES} ${UTILS_FILES} ${TEXT_FILES} ${DIAGNOSTIC_FILES}
         ${LEXICAL_FILES} ${SEMANTIC_FILES} ${CONSTEXPR_FILES})
 

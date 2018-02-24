@@ -98,7 +98,6 @@ class PtrList : private PtrListBase {
         using base::capacity;
         using base::reserve;
         using base::swap;
-        using base::toHeap;
         
         void pushBack(T *data)  { base::pushBack(data); }
         T*    popBack() noexcept { return static_cast<T*>(base::popBack()); }

@@ -1,23 +1,12 @@
-#include "text/ustring.hpp"
 #include "semantic/type.hpp"
 #include "semantic/typeenum.hpp"
 #include "semantic/qualtype.hpp"
+#include "diagnostic/logger.hpp"
 
 #include <cassert>
 
-namespace impl = Compiler::Semantic;
-
-using namespace Compiler;
-using namespace Compiler::Text;
 using namespace Compiler::Semantic;
-
-QualType::QualType() noexcept : m_ptr(0) {}
-
-QualType::QualType(Type *type, uint32_t qual) noexcept {
-    reset(type, qual);
-}
-
-QualType::QualType(const self &other) noexcept : m_ptr(other.m_ptr) {}
+using namespace Compiler::Diagnostic;
 
 uint32_t QualType::qual() const noexcept {
     return m_ptr & Qual;
@@ -44,21 +33,9 @@ void QualType::setBase(Type *base) noexcept {
     m_ptr = reinterpret_cast<uintptr_t>(base) | qual();
 }
 
-Type* QualType::operator->() noexcept {
-    return get();
-}
-
-const Type* QualType::operator->() const noexcept {
-    return get();
-}
-
 void QualType::reset(Type *type, uint32_t qual) noexcept {
     m_ptr = reinterpret_cast<uintptr_t>(type) | qual;
     assert((reinterpret_cast<uintptr_t>(type) & qual) == 0);
-}
-
-bool QualType::isNull() const noexcept {
-    return get() == nullptr;
 }
 
 bool QualType::isConst() const noexcept {
@@ -80,25 +57,18 @@ QualType QualType::decay() noexcept {
     auto func = ptr->toFunc();
     auto array = ptr->toArray();
     
-    if(func)
-        ;
-    else if(array) {
+    if(array) {
         auto base = array->base();
         qual = base.qual();
         ptr = base.get();
-    } else 
+    } else if(!func)
         return *this;
     return QualType{ makePointerType(ptr), qual };
 }
 
-QualType::operator bool() const noexcept {
-    return get() != nullptr;
-}
-
-bool QualType::operator==(const QualType &o) const noexcept {
-    return m_ptr == o.m_ptr;
-}
-
-bool QualType::operator!=(const QualType &o) const noexcept {
-    return !operator==(o);
+void QualType::print(Logger &log) noexcept {
+    auto qual = this->qual();
+    if(qual)
+        log << Logger::qualifiers << qual << ' ';
+    get()->print(log);
 }

@@ -1,10 +1,9 @@
 #ifndef TYPE_HPP
 #define TYPE_HPP
 
+#include "common.hpp"
 #include "utils/ptrlist.hpp"
 #include "semantic/qualtype.hpp"
-
-#include <cstdint>
 
 namespace Compiler {
 
@@ -16,50 +15,50 @@ namespace Semantic {
 
 class VoidType;
 class NumberType;
-class DerivedType;
 class PointerType;
 class ArrayType;
 class StructType;
 class EnumType;
 class FuncType;
 
+class StructDecl;
+
 class Type {
+    protected:
+        enum TypeTag {
+            Void, Number, Pointer, Array, Struct, Enum, Func
+        };
+    private:
+        TypeTag m_tag;
+    protected:
+        explicit Type(TypeTag tag) noexcept : m_tag(tag) {}
     public:
-        Type() noexcept = default;
-        virtual ~Type() = default;
+#define DECLARE_TYPECAST(type) \
+    type##Type*       to##type()       noexcept; \
+    const type##Type* to##type() const noexcept
+        DECLARE_TYPECAST(Void);
+        DECLARE_TYPECAST(Number);
+        DECLARE_TYPECAST(Pointer);
+        DECLARE_TYPECAST(Array);
+        DECLARE_TYPECAST(Struct);
+        DECLARE_TYPECAST(Enum);
+        DECLARE_TYPECAST(Func);
+#undef DECLARE_TYPECAST
         
-        // virtual functions to avoid dynamic_cast
-        virtual VoidType*          toVoid()          noexcept;
-        virtual const VoidType*    toVoid()    const noexcept;
-        virtual NumberType*        toNumber()        noexcept;
-        virtual const NumberType*  toNumber()  const noexcept;
-        virtual DerivedType*       toDerived()       noexcept;
-        virtual const DerivedType* toDerived() const noexcept;
-        virtual PointerType*       toPointer()       noexcept;
-        virtual const PointerType* toPointer() const noexcept;
-        virtual ArrayType*         toArray()         noexcept;
-        virtual const ArrayType*   toArray()   const noexcept;
-        virtual StructType*        toStruct()        noexcept;
-        virtual const StructType*  toStruct()  const noexcept;
-        virtual EnumType*          toEnum()          noexcept;
-        virtual const EnumType*    toEnum()    const noexcept;
-        virtual FuncType*          toFunc()          noexcept;
-        virtual const FuncType*    toFunc()    const noexcept;
+        bool isScalar()    noexcept { return toNumber() || toPointer(); }
+        bool isAggregate() noexcept { return toStruct() || toArray(); }
         
-        bool isScalar()    noexcept;
-        bool isAggregate() noexcept;
+        virtual bool isComplete() const noexcept { return true; }
         
-        virtual bool isComplete() const noexcept;
+        virtual bool isCompatible(Type *that)    noexcept { return this == that; }
+                bool isCompatible(QualType that) noexcept { return isCompatible(that.get()); }
         
-        virtual bool isCompatible(Type*) noexcept;
-        bool isCompatible(QualType) noexcept;
-        
-        virtual unsigned size()  const noexcept;
-        virtual unsigned align() const noexcept;
+        virtual unsigned size()  const noexcept { return 0; }
+        virtual unsigned align() const noexcept { return size(); }
         
         virtual void print(Diagnostic::Logger&) const = 0;
         
-        virtual Type* clone();
+        virtual Type* clone() { return this; }
 };
 
 /* C99 6.2.5 Types
@@ -69,12 +68,9 @@ class Type {
  */
 class VoidType : public Type {
     public:
-        VoidType() noexcept = default;
+        VoidType() noexcept : Type(TypeTag::Void) {}
         
-        bool isComplete() const noexcept override;
-        
-        VoidType*       toVoid()       noexcept override;
-        const VoidType* toVoid() const noexcept override;
+        bool isComplete() const noexcept override { return false; }
         
         void print(Diagnostic::Logger&) const override;
 };
@@ -115,10 +111,7 @@ class NumberType : public Type {
     private:
         const uint32_t type;
     public:
-        NumberType(uint32_t) noexcept;
-        
-        NumberType*       toNumber()       noexcept override;
-        const NumberType* toNumber() const noexcept override;
+        NumberType(uint32_t t) noexcept : Type(TypeTag::Number), type(t) {}
         
         void print(Diagnostic::Logger&) const override;
         
@@ -233,73 +226,75 @@ class NumberType : public Type {
  * derived type (as noted above in the construction of derived types), or the type itself if the
  * type consists of no derived types.
  */
-class DerivedType : public Type {
-    private: 
-        QualType m_base;
-    protected:
-        explicit DerivedType(QualType base) noexcept;
-    public:
-        DerivedType*       toDerived()       noexcept override;
-        const DerivedType* toDerived() const noexcept override;
-        
-        unsigned size()  const noexcept override;
-        unsigned align() const noexcept override;
-        
-        QualType base() const noexcept;
-        void setBase(QualType base) noexcept;
-};
+// class DerivedType : public Type {
+//     private: 
+//         QualType m_base;
+//     protected:
+//         explicit DerivedType(QualType base) noexcept;
+//     public:
+//         unsigned size()  const noexcept override;
+//         unsigned align() const noexcept override;
+//         
+//         QualType base() const noexcept;
+//         void setBase(QualType base) noexcept;
+// };
 
-class ArrayType : public DerivedType {
+class ArrayType : public Type {
     private:
-        int m_bound;
+        QualType m_base;
+        int      m_bound;
     public:
-        explicit ArrayType(QualType base, int bound = 0) noexcept;
-        
-        ArrayType*       toArray()       noexcept override;
-        const ArrayType* toArray() const noexcept override;
+        explicit ArrayType(QualType base, int bound = 0) noexcept
+            : Type(TypeTag::Array), m_base(base), m_bound(bound) {}
         
         void print(Diagnostic::Logger&) const override;
         
-        unsigned size() const noexcept override;
+        unsigned size() const noexcept override { return isComplete() ? m_base->size() * m_bound : 0; }
         
-        bool isComplete() const noexcept override;
+        bool isComplete() const noexcept override { return m_bound != -1; }
         
         bool isCompatible(Type*) noexcept override;
         
         ArrayType* clone() override;
         
-        int bound() const noexcept;
-        void setBound(int bound) noexcept;
+        QualType base()           const noexcept { return m_base; }
+        void     setBase(QualType base) noexcept { m_base = base; }
+        
+        int  bound()       const noexcept { return m_bound; }
+        void setBound(int bound) noexcept { m_bound = bound; }
 };
 
-class PointerType : public DerivedType {
+class PointerType : public Type {
+    private:
+        QualType m_base;
     public:
-        explicit PointerType(QualType base) noexcept;
-        explicit PointerType(Type *base, uint32_t qual = 0) noexcept;
+        explicit PointerType(QualType base) noexcept
+            : Type(TypeTag::Pointer), m_base(base) {}
+        
+        explicit PointerType(Type *base, uint32_t qual = 0) noexcept
+            : PointerType(QualType{base, qual}) {}
         
         bool isCompatible(Type*) noexcept override;
-        
-        PointerType*       toPointer()       noexcept override;
-        const PointerType* toPointer() const noexcept override;
         
         void print(Diagnostic::Logger&) const override;
         
         unsigned size()  const noexcept override;
-        unsigned align() const noexcept override;
+        unsigned align() const noexcept override { return size(); }
         
-        bool isVoidPtr() const noexcept;
+        bool isVoidPtr() const noexcept { return m_base->toVoid(); }
+        
+        QualType base()           const noexcept { return m_base; }
+        void     setBase(QualType base) noexcept { m_base = base; }
 };
 
 class StructType : public Type {
     private:
-        Utils::DeclList *m_members;
+        StructDecl *m_decl;
     public:
-        StructType(Utils::DeclList* = nullptr) noexcept;
+        explicit StructType(StructDecl *decl) noexcept
+            : Type(TypeTag::Struct), m_decl(decl) {}
         
-        StructType*       toStruct()       noexcept override;
-        const StructType* toStruct() const noexcept override;
-        
-        bool isComplete() const noexcept override;
+        bool isComplete()  const noexcept override;
         bool isCompatible(Type*) noexcept override;
         
         unsigned size()  const noexcept override;
@@ -307,51 +302,54 @@ class StructType : public Type {
         
         void print(Diagnostic::Logger&) const override;
         
+        /**
+         * Return list of members, use after checking isComplete().
+         * @return list of members
+         */
         Utils::DeclList& members() noexcept;
-        void setMembers(Utils::DeclList *members);
+        
+        StructDecl*       decl()       noexcept { return m_decl; }
+        const StructDecl* decl() const noexcept { return m_decl; }
 };
 
 class EnumType : public Type {
     private:
         bool m_complete;
     public:
-        explicit EnumType(bool = false) noexcept;
+        explicit EnumType(bool c = false) noexcept
+            : Type(TypeTag::Enum), m_complete(c) {}
         
-        EnumType*       toEnum()       noexcept override;
-        const EnumType* toEnum() const noexcept override;
-        
-        bool isComplete() const noexcept override;
+        bool isComplete() const noexcept override { return m_complete; }
         
         unsigned size()  const noexcept override;
         unsigned align() const noexcept override;
         
-        void setComplete(bool) noexcept;
+        void setComplete(bool c) noexcept { m_complete = c; }
         
         void print(Diagnostic::Logger&) const override;
 };
 
-class FuncType : public DerivedType {
+class FuncType : public Type {
     private:
+        QualType        m_ret;
         Utils::DeclList m_params;
         bool            m_vaarg;
     public:
-        FuncType(QualType ret, Utils::DeclList &&params, bool vaarg) noexcept;
-        
-        FuncType*       toFunc()       noexcept override;
-        const FuncType* toFunc() const noexcept override;
+        FuncType(QualType ret, Utils::DeclList &&params, bool vaarg = false) noexcept
+            : Type(TypeTag::Func), m_ret(ret), m_params(move(params)), m_vaarg(vaarg) {}
         
         bool isCompatible(Type*) noexcept override;
         
         void print(Diagnostic::Logger&) const override;
         
-        QualType returnType() const noexcept;
-        void setReturnType(QualType) noexcept;
+        QualType returnType()          const noexcept { return m_ret; }
+        void     setReturnType(QualType ret) noexcept { m_ret = ret; }
         
-        bool isVaArgs() const noexcept;
-        void setVaArgs(bool) noexcept;
+        bool isVaArgs() const noexcept { return m_vaarg; }
+        void setVaArgs(bool va) noexcept { m_vaarg = va; }
         
-        Utils::DeclList& params() noexcept;
-        void setParams(Utils::DeclList&&) noexcept;
+        Utils::DeclList& params() noexcept { return m_params; }
+        void setParams(Utils::DeclList &&params) noexcept { m_params = move(params); }
 };
 
 VoidType*    makeVoidType();

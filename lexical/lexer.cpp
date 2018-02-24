@@ -54,7 +54,7 @@ const SourceLoc* Lexer::sourceLoc() const noexcept {
 Token* Lexer::expect(TokenType type) {
     auto ret = get();
     if(!ret->is(type)) {
-        derr.at(ret) << "expecting '" << type 
+        derr.at(ret) << "expecting '" << type
             << "', but get '" << ret->type() << '\'';
     }
     return ret;
@@ -62,7 +62,7 @@ Token* Lexer::expect(TokenType type) {
 
 Token* Lexer::get() {
     logPos();
-    
+
     switch(m_src.skipSpace()) {
         case 1: return makeToken(Space);
         case 2:
@@ -70,11 +70,11 @@ Token* Lexer::get() {
         case 0:
         default: break;
     }
-    
+
     auto ch = m_src.get();
-    
+
     Token* temp;
-    
+
     // parsing delimiter using greedy policy
     switch(ch) {
         case '\0': return makeToken(Eof);
@@ -229,7 +229,6 @@ Token* Lexer::getChar() {
 }
 
 Token* Lexer::getString() {
-    UString ret{};
     UChar ch;
     while(m_src >> ch) {
         if(ch == '\"') break;
@@ -263,7 +262,7 @@ UChar Lexer::getUCN(unsigned len) {
     UChar::ValueType ret = 0;
     for(auto count = 0; count <= len; ++count) {
         if(!m_src.peek().isHex())
-            derr << sourceLoc() 
+            derr << sourceLoc()
                 << "expecting hexadecimal, but is in base " << m_src.get();
         ret <<= 4;
         ret |= m_src.get().toHex();
@@ -290,7 +289,7 @@ UChar Lexer::getOctChar(UChar ch) {
     assert(ch.isOct());
     UChar::ValueType c = ch;
     for(auto count = 1; count <= 3; ++count) {
-        if(m_src.peek().isOct()) 
+        if(m_src.peek().isOct())
             break;
         c <<= 3;
         c |= m_src.get().toOct();
