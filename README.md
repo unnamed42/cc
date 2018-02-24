@@ -1,3 +1,4 @@
-# old
+# cc
+simple c compiler, front-end only
 
-previous implementation, to be refactored (see refactor branch)
+Currently refactoring, previous implementation is in [old](/old)
