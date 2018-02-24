@@ -1,12 +1,16 @@
-#include "semantic/parser.hpp"
+#ifndef CC_DEBUG
+#define CC_DEBUG
+#endif
 
-#include <cassert>
+#include "parser.hpp"
 
-using namespace Compiler::Semantic;
+#include <iostream>
 
-int main(int argc, char* argv[]) {
-    assert(argc == 2);
-    
-    Parser parser{argv[1]};
-    parser.parse();
+int main() try {
+    compiler::parser parser("/home/h/2.c");
+    parser.process();
+    parser.print();
+    return EXIT_SUCCESS;
+} catch (int) {
+    return EXIT_FAILURE;
 }
